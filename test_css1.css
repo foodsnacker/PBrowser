@@ -1,0 +1,71 @@
+/* CSS 1 Phase 1 Test */
+
+h1 {
+  font-family: Times New Roman;
+  font-size: 32px;
+  color: navy;
+  text-align: center;
+  text-decoration: underline;
+  line-height: 40px;
+}
+
+.courier {
+  font-family: Courier New;
+  font-size: 16px;
+  color: green;
+}
+
+.center {
+  text-align: center;
+  font-size: 18px;
+  color: purple;
+}
+
+.right {
+  text-align: right;
+  font-size: 18px;
+  color: teal;
+}
+
+.boxed {
+  border-width: 2px;
+  border-style: solid;
+  border-color: red;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  padding-left: 15px;
+  padding-right: 15px;
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+.dashed {
+  border-width: 2px;
+  border-style: dashed;
+  border-color: blue;
+  padding-left: 10px;
+  margin-top: 10px;
+}
+
+.dotted {
+  border-width: 1px;
+  border-style: dotted;
+  border-color: fuchsia;
+  padding-left: 10px;
+  margin-top: 10px;
+}
+
+.linethrough {
+  text-decoration: line-through;
+  color: maroon;
+}
+
+.overline {
+  text-decoration: overline;
+  color: olive;
+}
+
+.tall-line {
+  line-height: 30px;
+  color: navy;
+}

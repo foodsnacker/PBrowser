@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Browser v0.8.1a - Complete Demo</title>
+  <style>
+    h1 { font-family: Times New Roman; font-size: 32px; color: navy; text-align: center; text-decoration: underline; }
+    h2 { font-family: Times New Roman; font-size: 24px; color: maroon; }
+    .courier { font-family: Courier New; font-size: 16px; color: green; }
+    .center { text-align: center; font-size: 18px; color: purple; }
+    .right { text-align: right; font-size: 18px; color: teal; }
+    .boxed { border: 2px solid red; padding: 10px 15px; margin: 20px 0; }
+    .dashed { border: 2px dashed blue; padding-left: 10px; margin-top: 10px; }
+    .dotted { border: 1px dotted fuchsia; padding-left: 10px; margin-top: 10px; }
+    .linethrough { text-decoration: line-through; color: maroon; }
+    .overline { text-decoration: overline; color: olive; }
+    .tall { line-height: 30px; color: navy; }
+    .just { text-align: justify; font-size: 18px; color: #222; }
+    pre { font-family: Courier New; font-size: 14px; background-color: #f7f7f7; border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
+    pre.wrap { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Browser v0.8.1a - Complete Feature Demo</h1>
+  
+  <h2>Font Families</h2>
+  <p>This is default Arial font</p>
+  <p class='courier'>This is Courier New font family</p>
+  
+  <h2>Text Alignment</h2>
+  <p>This text is left-aligned (default)</p>
+  <p class='center'>This text is centered</p>
+  <p class='right'>This text is right-aligned</p>
+  
+  <h2>Box Model & Borders</h2>
+  <div class='boxed'>
+    <p>This div has a solid red border with 10px padding and 20px margins</p>
+  </div>
+  <div class='dashed'>
+    <p>This div has a dashed blue border</p>
+  </div>
+  <div class='dotted'>
+    <p>This div has a dotted fuchsia border</p>
+  </div>
+  
+  <h2>Text Decorations</h2>
+  <p><u>This text is underlined (HTML)</u></p>
+  <p class='linethrough'>This text has line-through decoration (CSS)</p>
+  <p class='overline'>This text has overline decoration (CSS)</p>
+  
+  <h2>Colors (HTML 4.01)</h2>
+  <p style='color: red'>Red</p>
+  <p style='color: green'>Green</p>
+  <p style='color: blue'>Blue</p>
+  <p style='color: fuchsia'>Fuchsia</p>
+  <p style='color: aqua'>Aqua</p>
+  
+  <h2>Justify</h2>
+  <p class='just'>Dies ist ein langer Absatz, der im Blocksatz dargestellt werden soll. Die AbstÃ¤nde zwischen den WÃ¶rtern werden verteilt, so dass die Zeile die komplette Breite ausfÃ¼llt (auÃer der letzten Zeile). Das ist noch ein Minimal-Algorithmus, aber die Wirkung sollte sichtbar sein.</p>
+  
+  <h2>Pre / White-space</h2>
+  <pre>Pre erhÃ¤lt    mehrere   Spaces\nund neue Zeilen.\n\nTabs als Tabelle:\nName	Wert	Kommentar\nAlpha	123	ok\nBeta	456	gut\n\nAuch Leerzeilen bleiben erhalten.</pre>
+  <pre class='wrap'>Pre-wrap (mit Wrap):    viele     Spaces und sehr sehr sehr sehr sehr sehr sehr lange Zeilen, die umgebrochen werden dÃ¼rfen, aber die Spaces trotzdem behalten.</pre>
+  
+  <h2>Line Height</h2>
+  <p class='tall'>This paragraph has tall line-height (30px) for better readability and improved spacing between lines of text</p>
+  
+  <h2>HTML Elements</h2>
+  <p class='center'>Text with <strong>bold</strong>, <em>italic</em>, <u>underline</u>, <s>strikethrough</s>, <span class='overline'>overline</span> und gemischten <span class='linethrough'><u>CSS+HTML</u></span> Dekorationen â dieser Satz ist extra lang damit er umbricht und wir sehen ob die Dekorationen pro Run wirklich korrekt sitzen.</p>
+  <p>Subscript: H<sub>2</sub>O, Superscript: E=mc<sup>2</sup> und ein manueller Zeilenumbruch<br>genau hier, danach geht es weiter.</p>
+</body>
+</html>

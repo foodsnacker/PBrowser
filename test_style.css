@@ -1,0 +1,11 @@
+/* Test Stylesheet für v0.6.0 */
+h1 {
+  color: navy;
+  font-size: 32px;
+}
+
+.red { color: red; }
+.green { color: green; }
+.blue { color: blue; }
+.fuchsia { color: fuchsia; }
+.teal { color: teal; }
