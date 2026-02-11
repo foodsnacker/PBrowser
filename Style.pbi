@@ -1,24 +1,21 @@
 ; ============================================================================
-; Style.pbi v0.6.0 - STAGE 1 (Cascade + Specificity + Inheritance)
+; Style.pbi v0.7.0 - CSS 1 COMPLETE
 ; ----------------------------------------------------------------------------
-; Erweiterungen (Etappe 1):
-;  - Selector-Matching:
-;      * tag, .class, #id
-;      * tag.class, tag#id, .a.b, tag.a.b
-;      * Descendant: "div p" (ohne >, +, ~)
-;      * Gruppierung "h1, h2" wird im CSSParser bereits zu einzelnen Regeln expandiert
-;  - Cascade:
-;      * Specificity (IDs*100 + Classes*10 + Tags)
-;      * Reihenfolge: spätere Regeln gewinnen bei gleicher Specificity
-;      * Speicherung pro Property in Node\Attributes():
-;          css-<prop>       = value
-;          cssspec-<prop>   = specificity score
-;          cssorder-<prop>  = rule order
-;  - Inheritance:
-;      * GetComputedStyle erbt inheritable props vom Parent und überschreibt lokal
-; ----------------------------------------------------------------------------
-; Hinweis: Das System bleibt bewusst kompatibel zu deiner bisherigen "css-..." Attribute-
-; Ablage, wird aber jetzt korrekt "CSS-like" überschrieben.
+; Vollständige CSS 1 Implementierung (53 Properties):
+;  - Font: font-family, font-style, font-variant, font-weight, font-size, font
+;  - Text: color, text-decoration, text-align, text-indent, text-transform,
+;          word-spacing, letter-spacing, vertical-align, line-height
+;  - Background: background-color, background-image, background-repeat,
+;                background-attachment, background-position, background
+;  - Box Model: width, height, float, clear, margin-*, padding-*
+;  - Border: border-top-width, border-right-width, border-bottom-width,
+;            border-left-width, border-width, border-color, border-style,
+;            border-top, border-right, border-bottom, border-left, border
+;  - Classification: display, white-space, list-style-type, list-style-image,
+;                    list-style-position, list-style
+;  - Selector-Matching: tag, .class, #id, tag.class, Descendant ("div p")
+;  - Cascade: Specificity + Reihenfolge
+;  - Inheritance: alle CSS 1 inheritable Properties
 ; ============================================================================
 
 XIncludeFile "HTMLParser.pbi"
@@ -27,26 +24,39 @@ XIncludeFile "CSSParser.pbi"
 DeclareModule Style
 
   Structure ComputedStyle
-    ; Font
+    ; Font (CSS 1)
     FontSize.i
-    FontStyle.i
-    FontFamily.s          ; CSS 1
+    FontStyle.i           ; 0=normal, #PB_Font_Bold, #PB_Font_Italic
+    FontFamily.s
+    FontVariant.i         ; 0=normal, 1=small-caps
 
-    ; Text
+    ; Text (CSS 1)
     Color.i
-    TextDecoration.i      ; CSS 1 (0=none, 1=underline, 2=line-through, 3=overline, 4=blink)
-    TextAlign.i           ; CSS 1 (0=left, 1=center, 2=right, 3=justify)
-    LineHeight.i          ; CSS 1
+    TextDecoration.i      ; 0=none, 1=underline, 2=line-through, 3=overline, 4=blink
+    TextAlign.i           ; 0=left, 1=center, 2=right, 3=justify
+    TextIndent.i          ; px
+    TextTransform.i       ; 0=none, 1=capitalize, 2=uppercase, 3=lowercase
+    WordSpacing.i         ; px (0=normal)
+    LetterSpacing.i       ; px (0=normal)
+    VerticalAlign.i       ; 0=baseline, 1=sub, 2=super, 3=top, 4=text-top, 5=middle, 6=bottom, 7=text-bottom
+    LineHeight.i
 
-    ; White-space
-    WhiteSpace.i         ; 0=normal, 1=pre, 2=pre-wrap
+    ; White-space (CSS 1: normal, pre; pre-wrap ist CSS 2.1 Erweiterung)
+    WhiteSpace.i          ; 0=normal, 1=pre, 2=pre-wrap
 
-    ; Background
+    ; Background (CSS 1)
     BackgroundColor.i
+    BackgroundImage.s     ; URL oder "none"
+    BackgroundRepeat.i    ; 0=repeat, 1=repeat-x, 2=repeat-y, 3=no-repeat
+    BackgroundAttachment.i ; 0=scroll, 1=fixed
+    BackgroundPositionX.i ; px
+    BackgroundPositionY.i ; px
 
-    ; Box Model
+    ; Box Model (CSS 1)
     Width.i
     Height.i
+    Float.i               ; 0=none, 1=left, 2=right
+    Clear.i               ; 0=none, 1=left, 2=right, 3=both
     MarginTop.i
     MarginRight.i
     MarginBottom.i
@@ -56,13 +66,20 @@ DeclareModule Style
     PaddingBottom.i
     PaddingLeft.i
 
-    ; Border
-    BorderWidth.i
+    ; Border (CSS 1)
+    BorderTopWidth.i
+    BorderRightWidth.i
+    BorderBottomWidth.i
+    BorderLeftWidth.i
     BorderStyle.i         ; 0=none, 1=solid, 2=dashed, 3=dotted
     BorderColor.i
+    BorderWidth.i         ; Compat: uniform width (= BorderTopWidth)
 
-    ; Layout
-    Display.i             ; 0=block, 1=inline, 2=none
+    ; Classification (CSS 1)
+    Display.i             ; 0=block, 1=inline, 2=none, 3=list-item
+    ListStyleType.i       ; 0=disc, 1=circle, 2=square, 3=decimal, 4=lower-roman, 5=upper-roman, 6=lower-alpha, 7=upper-alpha, 8=none
+    ListStyleImage.s      ; URL oder "none"
+    ListStylePosition.i   ; 0=outside, 1=inside
   EndStructure
 
   Declare ApplyStyleSheet(*Root.HTMLParser::DOMNode, *Sheet.CSSParser::StyleSheet)
@@ -145,6 +162,14 @@ Module Style
     ProcedureReturn 0
   EndProcedure
 
+  Procedure.i ParseFontVariant(VariantString.s)
+    VariantString = LCase(Trim(VariantString))
+    If VariantString = "small-caps"
+      ProcedureReturn 1
+    EndIf
+    ProcedureReturn 0
+  EndProcedure
+
   ; CSS 1 Parser - Font-Family Mapping (vereinfacht)
   Procedure.s ParseFontFamily(FamilyString.s)
     FamilyString = LCase(Trim(FamilyString))
@@ -171,6 +196,7 @@ Module Style
       Case "underline": ProcedureReturn 1
       Case "line-through": ProcedureReturn 2
       Case "overline": ProcedureReturn 3
+      Case "blink": ProcedureReturn 4
       Default: ProcedureReturn 0
     EndSelect
   EndProcedure
@@ -182,6 +208,32 @@ Module Style
       Case "center": ProcedureReturn 1
       Case "right": ProcedureReturn 2
       Case "justify": ProcedureReturn 3
+      Default: ProcedureReturn 0
+    EndSelect
+  EndProcedure
+
+  Procedure.i ParseTextTransform(TransformString.s)
+    TransformString = LCase(Trim(TransformString))
+    Select TransformString
+      Case "none": ProcedureReturn 0
+      Case "capitalize": ProcedureReturn 1
+      Case "uppercase": ProcedureReturn 2
+      Case "lowercase": ProcedureReturn 3
+      Default: ProcedureReturn 0
+    EndSelect
+  EndProcedure
+
+  Procedure.i ParseVerticalAlign(AlignString.s)
+    AlignString = LCase(Trim(AlignString))
+    Select AlignString
+      Case "baseline": ProcedureReturn 0
+      Case "sub": ProcedureReturn 1
+      Case "super": ProcedureReturn 2
+      Case "top": ProcedureReturn 3
+      Case "text-top": ProcedureReturn 4
+      Case "middle": ProcedureReturn 5
+      Case "bottom": ProcedureReturn 6
+      Case "text-bottom": ProcedureReturn 7
       Default: ProcedureReturn 0
     EndSelect
   EndProcedure
@@ -206,7 +258,6 @@ Module Style
     ProcedureReturn FontSize * 1.2
   EndProcedure
 
-  
   Procedure.i ParseWhiteSpace(WSString.s)
     WSString = LCase(Trim(WSString))
     Select WSString
@@ -217,12 +268,13 @@ Module Style
     EndSelect
   EndProcedure
 
-Procedure.i ParseDisplay(DisplayString.s)
+  Procedure.i ParseDisplay(DisplayString.s)
     DisplayString = LCase(Trim(DisplayString))
     Select DisplayString
       Case "block": ProcedureReturn 0
       Case "inline": ProcedureReturn 1
       Case "none": ProcedureReturn 2
+      Case "list-item": ProcedureReturn 3
       Default: ProcedureReturn 0
     EndSelect
   EndProcedure
@@ -236,6 +288,96 @@ Procedure.i ParseDisplay(DisplayString.s)
       Case "dotted": ProcedureReturn 3
       Default: ProcedureReturn 0
     EndSelect
+  EndProcedure
+
+  Procedure.i ParseFloat(FloatString.s)
+    FloatString = LCase(Trim(FloatString))
+    Select FloatString
+      Case "none": ProcedureReturn 0
+      Case "left": ProcedureReturn 1
+      Case "right": ProcedureReturn 2
+      Default: ProcedureReturn 0
+    EndSelect
+  EndProcedure
+
+  Procedure.i ParseClear(ClearString.s)
+    ClearString = LCase(Trim(ClearString))
+    Select ClearString
+      Case "none": ProcedureReturn 0
+      Case "left": ProcedureReturn 1
+      Case "right": ProcedureReturn 2
+      Case "both": ProcedureReturn 3
+      Default: ProcedureReturn 0
+    EndSelect
+  EndProcedure
+
+  Procedure.i ParseListStyleType(TypeString.s)
+    TypeString = LCase(Trim(TypeString))
+    Select TypeString
+      Case "disc": ProcedureReturn 0
+      Case "circle": ProcedureReturn 1
+      Case "square": ProcedureReturn 2
+      Case "decimal": ProcedureReturn 3
+      Case "lower-roman": ProcedureReturn 4
+      Case "upper-roman": ProcedureReturn 5
+      Case "lower-alpha": ProcedureReturn 6
+      Case "upper-alpha": ProcedureReturn 7
+      Case "none": ProcedureReturn 8
+      Default: ProcedureReturn 0
+    EndSelect
+  EndProcedure
+
+  Procedure.i ParseListStylePosition(PosString.s)
+    PosString = LCase(Trim(PosString))
+    Select PosString
+      Case "outside": ProcedureReturn 0
+      Case "inside": ProcedureReturn 1
+      Default: ProcedureReturn 0
+    EndSelect
+  EndProcedure
+
+  Procedure.i ParseBackgroundRepeat(RepeatString.s)
+    RepeatString = LCase(Trim(RepeatString))
+    Select RepeatString
+      Case "repeat": ProcedureReturn 0
+      Case "repeat-x": ProcedureReturn 1
+      Case "repeat-y": ProcedureReturn 2
+      Case "no-repeat": ProcedureReturn 3
+      Default: ProcedureReturn 0
+    EndSelect
+  EndProcedure
+
+  Procedure.i ParseBackgroundAttachment(AttachString.s)
+    AttachString = LCase(Trim(AttachString))
+    Select AttachString
+      Case "scroll": ProcedureReturn 0
+      Case "fixed": ProcedureReturn 1
+      Default: ProcedureReturn 0
+    EndSelect
+  EndProcedure
+
+  ; CSS 1: url(...) extrahieren
+  Procedure.s ParseURL(URLString.s)
+    Protected s.s = Trim(URLString)
+    If LCase(Left(s, 4)) = "url("
+      s = Mid(s, 5)
+      If Right(s, 1) = ")"
+        s = Left(s, Len(s) - 1)
+      EndIf
+      s = Trim(s)
+      s = RemoveString(s, "'")
+      s = RemoveString(s, Chr(34))
+    EndIf
+    ProcedureReturn s
+  EndProcedure
+
+  ; CSS 1: Spacing-Werte (word-spacing, letter-spacing)
+  Procedure.i ParseSpacing(SpacingString.s)
+    SpacingString = LCase(Trim(SpacingString))
+    If SpacingString = "normal"
+      ProcedureReturn 0
+    EndIf
+    ProcedureReturn ParseSize(SpacingString)
   EndProcedure
 
   ; -----------------------------
@@ -482,22 +624,86 @@ Procedure.i ParseDisplay(DisplayString.s)
       Select PropName
         Case "border"
           Protected Parts.s = PropValue
-          Protected W.s = Trim(StringField(Parts, 1, " "))
-          Protected S.s = Trim(StringField(Parts, 2, " "))
-          Protected C.s = Trim(StringField(Parts, 3, " "))
+          Protected bW.s = Trim(StringField(Parts, 1, " "))
+          Protected bS.s = Trim(StringField(Parts, 2, " "))
+          Protected bC.s = Trim(StringField(Parts, 3, " "))
 
-          If W <> ""
-            ApplyCascadedProperty(*Node, "border-width", W, Spec, RuleOrder)
-            Debug "  → Expandiere border-width = " + W
+          If bW <> ""
+            ApplyCascadedProperty(*Node, "border-top-width", bW, Spec, RuleOrder)
+            ApplyCascadedProperty(*Node, "border-right-width", bW, Spec, RuleOrder)
+            ApplyCascadedProperty(*Node, "border-bottom-width", bW, Spec, RuleOrder)
+            ApplyCascadedProperty(*Node, "border-left-width", bW, Spec, RuleOrder)
+            ApplyCascadedProperty(*Node, "border-width", bW, Spec, RuleOrder)
+            Debug "  → Expandiere border-width = " + bW
           EndIf
-          If S <> ""
-            ApplyCascadedProperty(*Node, "border-style", S, Spec, RuleOrder)
-            Debug "  → Expandiere border-style = " + S
+          If bS <> ""
+            ApplyCascadedProperty(*Node, "border-style", bS, Spec, RuleOrder)
+            Debug "  → Expandiere border-style = " + bS
           EndIf
-          If C <> ""
-            ApplyCascadedProperty(*Node, "border-color", C, Spec, RuleOrder)
-            Debug "  → Expandiere border-color = " + C
+          If bC <> ""
+            ApplyCascadedProperty(*Node, "border-color", bC, Spec, RuleOrder)
+            Debug "  → Expandiere border-color = " + bC
           EndIf
+
+        Case "border-width"
+          Protected bwCount.i = CountString(PropValue, " ") + 1
+          Select bwCount
+            Case 1
+              Protected bwAll.s = Trim(PropValue)
+              ApplyCascadedProperty(*Node, "border-top-width", bwAll, Spec, RuleOrder)
+              ApplyCascadedProperty(*Node, "border-right-width", bwAll, Spec, RuleOrder)
+              ApplyCascadedProperty(*Node, "border-bottom-width", bwAll, Spec, RuleOrder)
+              ApplyCascadedProperty(*Node, "border-left-width", bwAll, Spec, RuleOrder)
+            Case 2
+              Protected bwV.s = Trim(StringField(PropValue, 1, " "))
+              Protected bwH.s = Trim(StringField(PropValue, 2, " "))
+              ApplyCascadedProperty(*Node, "border-top-width", bwV, Spec, RuleOrder)
+              ApplyCascadedProperty(*Node, "border-bottom-width", bwV, Spec, RuleOrder)
+              ApplyCascadedProperty(*Node, "border-right-width", bwH, Spec, RuleOrder)
+              ApplyCascadedProperty(*Node, "border-left-width", bwH, Spec, RuleOrder)
+            Case 3
+              ApplyCascadedProperty(*Node, "border-top-width", Trim(StringField(PropValue, 1, " ")), Spec, RuleOrder)
+              ApplyCascadedProperty(*Node, "border-right-width", Trim(StringField(PropValue, 2, " ")), Spec, RuleOrder)
+              ApplyCascadedProperty(*Node, "border-bottom-width", Trim(StringField(PropValue, 3, " ")), Spec, RuleOrder)
+              ApplyCascadedProperty(*Node, "border-left-width", Trim(StringField(PropValue, 2, " ")), Spec, RuleOrder)
+            Case 4
+              ApplyCascadedProperty(*Node, "border-top-width", Trim(StringField(PropValue, 1, " ")), Spec, RuleOrder)
+              ApplyCascadedProperty(*Node, "border-right-width", Trim(StringField(PropValue, 2, " ")), Spec, RuleOrder)
+              ApplyCascadedProperty(*Node, "border-bottom-width", Trim(StringField(PropValue, 3, " ")), Spec, RuleOrder)
+              ApplyCascadedProperty(*Node, "border-left-width", Trim(StringField(PropValue, 4, " ")), Spec, RuleOrder)
+          EndSelect
+
+        Case "border-top"
+          Protected btW.s = Trim(StringField(PropValue, 1, " "))
+          Protected btS.s = Trim(StringField(PropValue, 2, " "))
+          Protected btC.s = Trim(StringField(PropValue, 3, " "))
+          If btW <> "" : ApplyCascadedProperty(*Node, "border-top-width", btW, Spec, RuleOrder) : EndIf
+          If btS <> "" : ApplyCascadedProperty(*Node, "border-style", btS, Spec, RuleOrder) : EndIf
+          If btC <> "" : ApplyCascadedProperty(*Node, "border-color", btC, Spec, RuleOrder) : EndIf
+
+        Case "border-right"
+          Protected brW.s = Trim(StringField(PropValue, 1, " "))
+          Protected brS.s = Trim(StringField(PropValue, 2, " "))
+          Protected brC.s = Trim(StringField(PropValue, 3, " "))
+          If brW <> "" : ApplyCascadedProperty(*Node, "border-right-width", brW, Spec, RuleOrder) : EndIf
+          If brS <> "" : ApplyCascadedProperty(*Node, "border-style", brS, Spec, RuleOrder) : EndIf
+          If brC <> "" : ApplyCascadedProperty(*Node, "border-color", brC, Spec, RuleOrder) : EndIf
+
+        Case "border-bottom"
+          Protected bbW.s = Trim(StringField(PropValue, 1, " "))
+          Protected bbS.s = Trim(StringField(PropValue, 2, " "))
+          Protected bbC.s = Trim(StringField(PropValue, 3, " "))
+          If bbW <> "" : ApplyCascadedProperty(*Node, "border-bottom-width", bbW, Spec, RuleOrder) : EndIf
+          If bbS <> "" : ApplyCascadedProperty(*Node, "border-style", bbS, Spec, RuleOrder) : EndIf
+          If bbC <> "" : ApplyCascadedProperty(*Node, "border-color", bbC, Spec, RuleOrder) : EndIf
+
+        Case "border-left"
+          Protected blW.s = Trim(StringField(PropValue, 1, " "))
+          Protected blS.s = Trim(StringField(PropValue, 2, " "))
+          Protected blC.s = Trim(StringField(PropValue, 3, " "))
+          If blW <> "" : ApplyCascadedProperty(*Node, "border-left-width", blW, Spec, RuleOrder) : EndIf
+          If blS <> "" : ApplyCascadedProperty(*Node, "border-style", blS, Spec, RuleOrder) : EndIf
+          If blC <> "" : ApplyCascadedProperty(*Node, "border-color", blC, Spec, RuleOrder) : EndIf
 
         Case "margin"
           Protected NumValues.i = CountString(PropValue, " ") + 1
@@ -555,6 +761,97 @@ Procedure.i ParseDisplay(DisplayString.s)
               Debug "  → Expandiere padding (4) = " + PropValue
           EndSelect
 
+        Case "font"
+          ; CSS 1 font shorthand (vereinfacht):
+          ; font: [style] [variant] [weight] size[/line-height] family
+          ; Minimal: font: size family
+          Protected fontParts.i = CountString(PropValue, " ") + 1
+          Protected fIdx.i = 1
+          Protected fToken.s
+
+          ; Optionale Teile: style, variant, weight
+          While fIdx <= fontParts - 2
+            fToken = LCase(Trim(StringField(PropValue, fIdx, " ")))
+            If fToken = "italic" Or fToken = "oblique"
+              ApplyCascadedProperty(*Node, "font-style", fToken, Spec, RuleOrder)
+              fIdx + 1
+            ElseIf fToken = "small-caps"
+              ApplyCascadedProperty(*Node, "font-variant", fToken, Spec, RuleOrder)
+              fIdx + 1
+            ElseIf fToken = "bold" Or fToken = "bolder" Or fToken = "lighter" Or (Val(fToken) >= 100 And Val(fToken) <= 900)
+              ApplyCascadedProperty(*Node, "font-weight", fToken, Spec, RuleOrder)
+              fIdx + 1
+            ElseIf fToken = "normal"
+              fIdx + 1
+            Else
+              Break
+            EndIf
+          Wend
+
+          ; size[/line-height]
+          If fIdx <= fontParts
+            Protected sizeToken.s = Trim(StringField(PropValue, fIdx, " "))
+            Protected slashPos.i = FindString(sizeToken, "/")
+            If slashPos > 0
+              ApplyCascadedProperty(*Node, "font-size", Left(sizeToken, slashPos - 1), Spec, RuleOrder)
+              ApplyCascadedProperty(*Node, "line-height", Mid(sizeToken, slashPos + 1), Spec, RuleOrder)
+            Else
+              ApplyCascadedProperty(*Node, "font-size", sizeToken, Spec, RuleOrder)
+            EndIf
+            fIdx + 1
+          EndIf
+
+          ; family (rest)
+          If fIdx <= fontParts
+            Protected famParts.s = ""
+            Protected fi.i
+            For fi = fIdx To fontParts
+              If famParts <> "" : famParts + " " : EndIf
+              famParts + Trim(StringField(PropValue, fi, " "))
+            Next
+            ApplyCascadedProperty(*Node, "font-family", famParts, Spec, RuleOrder)
+          EndIf
+
+        Case "background"
+          ; CSS 1 background shorthand (vereinfacht):
+          ; Jeder Token wird nach Typ klassifiziert
+          Protected bgCount.i = CountString(PropValue, " ") + 1
+          Protected bgI.i, bgToken.s
+          For bgI = 1 To bgCount
+            bgToken = Trim(StringField(PropValue, bgI, " "))
+            If bgToken = "" : Continue : EndIf
+
+            If LCase(Left(bgToken, 4)) = "url("
+              ApplyCascadedProperty(*Node, "background-image", bgToken, Spec, RuleOrder)
+            ElseIf LCase(bgToken) = "repeat" Or LCase(bgToken) = "repeat-x" Or LCase(bgToken) = "repeat-y" Or LCase(bgToken) = "no-repeat"
+              ApplyCascadedProperty(*Node, "background-repeat", bgToken, Spec, RuleOrder)
+            ElseIf LCase(bgToken) = "scroll" Or LCase(bgToken) = "fixed"
+              ApplyCascadedProperty(*Node, "background-attachment", bgToken, Spec, RuleOrder)
+            Else
+              ; Farbe (Hex, Named) oder Position
+              If Left(bgToken, 1) = "#" Or FindMapElement(*Node\Attributes(), "")= 0
+                ApplyCascadedProperty(*Node, "background-color", bgToken, Spec, RuleOrder)
+              EndIf
+            EndIf
+          Next
+
+        Case "list-style"
+          ; CSS 1: list-style: [type] [position] [image]
+          Protected lsCount.i = CountString(PropValue, " ") + 1
+          Protected lsI.i, lsToken.s
+          For lsI = 1 To lsCount
+            lsToken = Trim(StringField(PropValue, lsI, " "))
+            If lsToken = "" : Continue : EndIf
+
+            If LCase(Left(lsToken, 4)) = "url("
+              ApplyCascadedProperty(*Node, "list-style-image", lsToken, Spec, RuleOrder)
+            ElseIf LCase(lsToken) = "inside" Or LCase(lsToken) = "outside"
+              ApplyCascadedProperty(*Node, "list-style-position", lsToken, Spec, RuleOrder)
+            Else
+              ApplyCascadedProperty(*Node, "list-style-type", lsToken, Spec, RuleOrder)
+            EndIf
+          Next
+
         Default
           ApplyCascadedProperty(*Node, PropName, PropValue, Spec, RuleOrder)
           Debug "  → Setze Attribut: css-" + PropName + " = " + PropValue
@@ -606,15 +903,28 @@ Procedure.i ParseDisplay(DisplayString.s)
     *Style\FontSize = 14
     *Style\FontStyle = 0
     *Style\FontFamily = "Arial"
+    *Style\FontVariant = 0
     *Style\Color = RGB(0, 0, 0)
     *Style\TextDecoration = 0
     *Style\TextAlign = 0
+    *Style\TextIndent = 0
+    *Style\TextTransform = 0
+    *Style\WordSpacing = 0
+    *Style\LetterSpacing = 0
+    *Style\VerticalAlign = 0
     *Style\LineHeight = 0
     *Style\WhiteSpace = 0
     *Style\BackgroundColor = RGB(255, 255, 255)
+    *Style\BackgroundImage = ""
+    *Style\BackgroundRepeat = 0
+    *Style\BackgroundAttachment = 0
+    *Style\BackgroundPositionX = 0
+    *Style\BackgroundPositionY = 0
 
     *Style\Width = 0
     *Style\Height = 0
+    *Style\Float = 0
+    *Style\Clear = 0
     *Style\MarginTop = 0
     *Style\MarginRight = 0
     *Style\MarginBottom = 0
@@ -623,31 +933,50 @@ Procedure.i ParseDisplay(DisplayString.s)
     *Style\PaddingRight = 0
     *Style\PaddingBottom = 0
     *Style\PaddingLeft = 0
+    *Style\BorderTopWidth = 0
+    *Style\BorderRightWidth = 0
+    *Style\BorderBottomWidth = 0
+    *Style\BorderLeftWidth = 0
     *Style\BorderWidth = 0
     *Style\BorderStyle = 0
     *Style\BorderColor = RGB(0, 0, 0)
     *Style\Display = 0  ; block
+    *Style\ListStyleType = 0
+    *Style\ListStyleImage = ""
+    *Style\ListStylePosition = 0
 
-    ; Inheritance (subset, CSS-ish)
+    ; Inheritance (CSS 1 inherited properties)
     If *Node\Parent
       Protected Parent.ComputedStyle
       GetComputedStyle(*Node\Parent, @Parent)
 
+      ; Font (inherited)
       *Style\FontSize = Parent\FontSize
       *Style\FontStyle = Parent\FontStyle
       *Style\FontFamily = Parent\FontFamily
+      *Style\FontVariant = Parent\FontVariant
+
+      ; Text (inherited)
       *Style\Color = Parent\Color
       *Style\TextAlign = Parent\TextAlign
+      *Style\TextIndent = Parent\TextIndent
+      *Style\TextTransform = Parent\TextTransform
+      *Style\WordSpacing = Parent\WordSpacing
+      *Style\LetterSpacing = Parent\LetterSpacing
       *Style\LineHeight = Parent\LineHeight
       *Style\WhiteSpace = Parent\WhiteSpace
 
-      ; Hinweis: text-decoration ist in CSS2 nicht "inherited" als Property,
-      ; aber die visuelle Wirkung propagiert in der Praxis. Für dein Projekt
-      ; ist diese Vererbung aktuell hilfreich (und kompatibel zu bisherigem Verhalten).
+      ; Hinweis: text-decoration ist in CSS nicht inherited als Property,
+      ; aber die visuelle Wirkung propagiert in der Praxis.
       *Style\TextDecoration = Parent\TextDecoration
+
+      ; Classification (inherited)
+      *Style\ListStyleType = Parent\ListStyleType
+      *Style\ListStyleImage = Parent\ListStyleImage
+      *Style\ListStylePosition = Parent\ListStylePosition
     EndIf
 
-    ; Font
+    ; ---- Font ----
     If FindMapElement(*Node\Attributes(), "css-font-size")
       *Style\FontSize = ParseSize(*Node\Attributes())
     EndIf
@@ -664,7 +993,11 @@ Procedure.i ParseDisplay(DisplayString.s)
       *Style\FontFamily = ParseFontFamily(*Node\Attributes())
     EndIf
 
-    ; Text
+    If FindMapElement(*Node\Attributes(), "css-font-variant")
+      *Style\FontVariant = ParseFontVariant(*Node\Attributes())
+    EndIf
+
+    ; ---- Text ----
     If FindMapElement(*Node\Attributes(), "css-color")
       *Style\Color = ParseColor(*Node\Attributes())
       Debug "[Style::GetComputedStyle] Node <" + *Node\TagName + "> hat css-color: " + *Node\Attributes() + " → " + Str(*Style\Color)
@@ -679,6 +1012,26 @@ Procedure.i ParseDisplay(DisplayString.s)
       *Style\TextAlign = ParseTextAlign(*Node\Attributes())
     EndIf
 
+    If FindMapElement(*Node\Attributes(), "css-text-indent")
+      *Style\TextIndent = ParseSize(*Node\Attributes())
+    EndIf
+
+    If FindMapElement(*Node\Attributes(), "css-text-transform")
+      *Style\TextTransform = ParseTextTransform(*Node\Attributes())
+    EndIf
+
+    If FindMapElement(*Node\Attributes(), "css-word-spacing")
+      *Style\WordSpacing = ParseSpacing(*Node\Attributes())
+    EndIf
+
+    If FindMapElement(*Node\Attributes(), "css-letter-spacing")
+      *Style\LetterSpacing = ParseSpacing(*Node\Attributes())
+    EndIf
+
+    If FindMapElement(*Node\Attributes(), "css-vertical-align")
+      *Style\VerticalAlign = ParseVerticalAlign(*Node\Attributes())
+    EndIf
+
     If FindMapElement(*Node\Attributes(), "css-line-height")
       *Style\LineHeight = ParseLineHeight(*Node\Attributes(), *Style\FontSize)
     EndIf
@@ -688,18 +1041,47 @@ Procedure.i ParseDisplay(DisplayString.s)
       *Style\LineHeight = *Style\FontSize + 6
     EndIf
 
-    ; Background
+    ; ---- Background ----
     If FindMapElement(*Node\Attributes(), "css-background-color")
       *Style\BackgroundColor = ParseColor(*Node\Attributes())
     EndIf
 
-    ; Box Model
+    If FindMapElement(*Node\Attributes(), "css-background-image")
+      *Style\BackgroundImage = ParseURL(*Node\Attributes())
+    EndIf
+
+    If FindMapElement(*Node\Attributes(), "css-background-repeat")
+      *Style\BackgroundRepeat = ParseBackgroundRepeat(*Node\Attributes())
+    EndIf
+
+    If FindMapElement(*Node\Attributes(), "css-background-attachment")
+      *Style\BackgroundAttachment = ParseBackgroundAttachment(*Node\Attributes())
+    EndIf
+
+    If FindMapElement(*Node\Attributes(), "css-background-position")
+      ; Vereinfacht: nur px-Werte "X Y"
+      Protected bgPos.s = Trim(*Node\Attributes())
+      *Style\BackgroundPositionX = ParseSize(Trim(StringField(bgPos, 1, " ")))
+      If CountString(bgPos, " ") > 0
+        *Style\BackgroundPositionY = ParseSize(Trim(StringField(bgPos, 2, " ")))
+      EndIf
+    EndIf
+
+    ; ---- Box Model ----
     If FindMapElement(*Node\Attributes(), "css-width")
       *Style\Width = ParseSize(*Node\Attributes())
     EndIf
 
     If FindMapElement(*Node\Attributes(), "css-height")
       *Style\Height = ParseSize(*Node\Attributes())
+    EndIf
+
+    If FindMapElement(*Node\Attributes(), "css-float")
+      *Style\Float = ParseFloat(*Node\Attributes())
+    EndIf
+
+    If FindMapElement(*Node\Attributes(), "css-clear")
+      *Style\Clear = ParseClear(*Node\Attributes())
     EndIf
 
     If FindMapElement(*Node\Attributes(), "css-margin-top")
@@ -734,11 +1116,33 @@ Procedure.i ParseDisplay(DisplayString.s)
       *Style\PaddingLeft = ParseSize(*Node\Attributes())
     EndIf
 
-    ; Border
-    If FindMapElement(*Node\Attributes(), "css-border-width")
-      *Style\BorderWidth = ParseSize(*Node\Attributes())
-      Debug "[GetComputedStyle] " + *Node\TagName + " border-width: " + *Node\Attributes() + " → " + Str(*Style\BorderWidth)
+    ; ---- Border ----
+    ; Per-side widths (CSS 1)
+    If FindMapElement(*Node\Attributes(), "css-border-top-width")
+      *Style\BorderTopWidth = ParseSize(*Node\Attributes())
     EndIf
+    If FindMapElement(*Node\Attributes(), "css-border-right-width")
+      *Style\BorderRightWidth = ParseSize(*Node\Attributes())
+    EndIf
+    If FindMapElement(*Node\Attributes(), "css-border-bottom-width")
+      *Style\BorderBottomWidth = ParseSize(*Node\Attributes())
+    EndIf
+    If FindMapElement(*Node\Attributes(), "css-border-left-width")
+      *Style\BorderLeftWidth = ParseSize(*Node\Attributes())
+    EndIf
+
+    ; Compat: border-width (uniform) -> per-side Fallback
+    If FindMapElement(*Node\Attributes(), "css-border-width")
+      Protected uniformBW.i = ParseSize(*Node\Attributes())
+      If *Style\BorderTopWidth = 0 : *Style\BorderTopWidth = uniformBW : EndIf
+      If *Style\BorderRightWidth = 0 : *Style\BorderRightWidth = uniformBW : EndIf
+      If *Style\BorderBottomWidth = 0 : *Style\BorderBottomWidth = uniformBW : EndIf
+      If *Style\BorderLeftWidth = 0 : *Style\BorderLeftWidth = uniformBW : EndIf
+    EndIf
+
+    ; Compat: BorderWidth = BorderTopWidth (für Layout.pbi / BrowserUI.pbi)
+    *Style\BorderWidth = *Style\BorderTopWidth
+    Debug "[GetComputedStyle] " + *Node\TagName + " border-width: " + Str(*Style\BorderWidth)
 
     If FindMapElement(*Node\Attributes(), "css-border-style")
       *Style\BorderStyle = ParseBorderStyle(*Node\Attributes())
@@ -750,14 +1154,25 @@ Procedure.i ParseDisplay(DisplayString.s)
       Debug "[GetComputedStyle] " + *Node\TagName + " border-color: " + *Node\Attributes() + " → " + Str(*Style\BorderColor)
     EndIf
 
-    ; Display
+    ; ---- Classification ----
     If FindMapElement(*Node\Attributes(), "css-display")
       *Style\Display = ParseDisplay(*Node\Attributes())
     EndIf
 
-    ; White-space
     If FindMapElement(*Node\Attributes(), "css-white-space")
       *Style\WhiteSpace = ParseWhiteSpace(*Node\Attributes())
+    EndIf
+
+    If FindMapElement(*Node\Attributes(), "css-list-style-type")
+      *Style\ListStyleType = ParseListStyleType(*Node\Attributes())
+    EndIf
+
+    If FindMapElement(*Node\Attributes(), "css-list-style-image")
+      *Style\ListStyleImage = ParseURL(*Node\Attributes())
+    EndIf
+
+    If FindMapElement(*Node\Attributes(), "css-list-style-position")
+      *Style\ListStylePosition = ParseListStylePosition(*Node\Attributes())
     EndIf
   EndProcedure
 

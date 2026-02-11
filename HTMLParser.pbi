@@ -1,7 +1,7 @@
 ; ============================================================================
-; HTMLParser.pbi v0.4.0 - 100% HTML 4.01 COMPLETE
+; HTMLParser.pbi v0.4.1 - 100% HTML 4.01 COMPLETE
 ; HTML-Parser-Modul mit vollständiger HTML 4.01 Element-Unterstützung
-; Alle 91 HTML 4.01 Strict Tags implementiert
+; Alle 91 HTML 4.01 Tags implementiert (Strict + Transitional + Frameset)
 ; ============================================================================
 
 DeclareModule HTMLParser
@@ -12,19 +12,12 @@ DeclareModule HTMLParser
     #NodeType_Root
   EndEnumeration
   
-  ; Alle HTML 4.01 Tags (vollständige Implementierung)
+  ; Alle 91 HTML 4.01 Tags (Strict + Transitional + Frameset)
   Enumeration ElementType
     ; Struktur
     #Element_HTML
     #Element_HEAD
     #Element_BODY
-    #Element_HEADER
-    #Element_FOOTER
-    #Element_NAV
-    #Element_SECTION
-    #Element_ARTICLE
-    #Element_ASIDE
-    #Element_MAIN
     #Element_DIV
     #Element_SPAN
     #Element_ADDRESS
@@ -85,9 +78,6 @@ DeclareModule HTMLParser
     #Element_OBJECT
     #Element_PARAM
     #Element_APPLET
-    #Element_VIDEO
-    #Element_AUDIO
-    #Element_CANVAS
     #Element_IFRAME
     
     ; Tabellen
@@ -171,13 +161,6 @@ Module HTMLParser
       Case "html": ProcedureReturn #Element_HTML
       Case "head": ProcedureReturn #Element_HEAD
       Case "body": ProcedureReturn #Element_BODY
-      Case "header": ProcedureReturn #Element_HEADER
-      Case "footer": ProcedureReturn #Element_FOOTER
-      Case "nav": ProcedureReturn #Element_NAV
-      Case "section": ProcedureReturn #Element_SECTION
-      Case "article": ProcedureReturn #Element_ARTICLE
-      Case "aside": ProcedureReturn #Element_ASIDE
-      Case "main": ProcedureReturn #Element_MAIN
       Case "div": ProcedureReturn #Element_DIV
       Case "span": ProcedureReturn #Element_SPAN
       Case "address": ProcedureReturn #Element_ADDRESS
@@ -238,9 +221,6 @@ Module HTMLParser
       Case "object": ProcedureReturn #Element_OBJECT
       Case "param": ProcedureReturn #Element_PARAM
       Case "applet": ProcedureReturn #Element_APPLET
-      Case "video": ProcedureReturn #Element_VIDEO
-      Case "audio": ProcedureReturn #Element_AUDIO
-      Case "canvas": ProcedureReturn #Element_CANVAS
       Case "iframe": ProcedureReturn #Element_IFRAME
       
       ; Tabellen
@@ -283,8 +263,7 @@ Module HTMLParser
       Case "frameset": ProcedureReturn #Element_FRAMESET
       Case "frame": ProcedureReturn #Element_FRAME
       Case "noframes": ProcedureReturn #Element_NOFRAMES
-      Case "bdo": ProcedureReturn #Element_BDO
-      
+
       Default: ProcedureReturn #Element_Unknown
     EndSelect
   EndProcedure

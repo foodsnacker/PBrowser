@@ -1,5 +1,5 @@
 ; ============================================================================
-; Layout.pbi v0.8.1a - BORDER WIDTH FIX (mit Layout-Fixes)
+; Layout.pbi v0.9.0 - CSS 1 Rendering (mit Layout-Fixes)
 ; ----------------------------------------------------------------------------
 ; Fixes:
 ;  FIX 1: Block-Flow korrekt (Children nacheinander, PaddingTop/Bottom korrekt,
@@ -41,6 +41,9 @@ DeclareModule Layout
     TextDecoration.i  ; 0=none, 1=underline, 2=line-through, 3=overline
     IsSubscript.i
     IsSuperscript.i
+    FontVariant.i     ; 0=normal, 1=small-caps
+    LetterSpacing.i   ; px
+    WordSpacing.i     ; px
   EndStructure
 
   Structure LayoutBox
@@ -57,6 +60,14 @@ DeclareModule Layout
     LineHeight.i
     WhiteSpace.i         ; 0=normal, 1=pre, 2=pre-wrap
 
+    ; Text (CSS 1 erweitert)
+    TextIndent.i          ; CSS 1: Einrückung erste Zeile (px)
+    TextTransform.i       ; CSS 1: 0=none, 1=capitalize, 2=uppercase, 3=lowercase
+    FontVariant.i         ; CSS 1: 0=normal, 1=small-caps
+    WordSpacing.i         ; CSS 1: px (0=normal)
+    LetterSpacing.i       ; CSS 1: px (0=normal)
+    VerticalAlign.i       ; CSS 1: 0=baseline, 1=sub, 2=super, ...
+
     ; Background
     BackgroundColor.i
 
@@ -70,13 +81,19 @@ DeclareModule Layout
     PaddingBottom.i
     PaddingLeft.i
 
-    ; Border
-    BorderWidth.i
+    ; Border (CSS 1: per-side)
+    BorderTopWidth.i
+    BorderRightWidth.i
+    BorderBottomWidth.i
+    BorderLeftWidth.i
+    BorderWidth.i         ; Compat: uniform (= TopWidth)
     BorderStyle.i
     BorderColor.i
 
-    ; Layout
+    ; Classification
     Display.i
+    ListStyleType.i       ; CSS 1: 0=disc, 1=circle, 2=square, 3=decimal, ...8=none
+    ListItemIndex.i       ; OL-Nummerierung: 1-basiert
 
     ; Sub/Super (HTML 4)
     IsSubscript.i
@@ -245,10 +262,39 @@ Module Layout
     EndIf
   EndProcedure
 
+  ; CSS 1: Text-Transform anwenden
+  Procedure.s ApplyTextTransform(Text.s, Transform.i)
+    Select Transform
+      Case 1  ; capitalize
+        Protected result.s = ""
+        Protected prevSpace.i = 1
+        Protected ci.i
+        For ci = 1 To Len(Text)
+          Protected ch.s = Mid(Text, ci, 1)
+          If prevSpace And ch <> " "
+            result + UCase(ch)
+            prevSpace = 0
+          Else
+            result + ch
+            If ch = " "
+              prevSpace = 1
+            EndIf
+          EndIf
+        Next
+        ProcedureReturn result
+      Case 2  ; uppercase
+        ProcedureReturn UCase(Text)
+      Case 3  ; lowercase
+        ProcedureReturn LCase(Text)
+    EndSelect
+    ProcedureReturn Text
+  EndProcedure
+
   ; Sammle alle Inline-Content (Text + Inline-Elemente) rekursiv
   Procedure CollectInlineRuns(*Node.HTMLParser::DOMNode, List Runs.InlineRun(),
                               ParentFontSize.i=14, ParentFontStyle.i=0, ParentFontFamily.s="Arial",
-                              ParentColor.i=0, ParentDecoration.i=0, ParentSub.i=0, ParentSup.i=0, WhiteSpaceMode.i=0)
+                              ParentColor.i=0, ParentDecoration.i=0, ParentSub.i=0, ParentSup.i=0, WhiteSpaceMode.i=0,
+                              ParentTextTransform.i=0, ParentFontVariant.i=0, ParentLetterSpacing.i=0, ParentWordSpacing.i=0)
     Protected FontSize.i, FontStyle.i, Color.i, Decoration.i, IsSub.i, IsSup.i
     Protected FontFamily.s
     Protected CSSStyle.Style::ComputedStyle
@@ -262,7 +308,12 @@ Module Layout
         ; Text-Node: Erstelle Run mit Parent-Styles
         If (WhiteSpaceMode > 0 And *Node\TextContent <> "") Or (WhiteSpaceMode = 0 And Trim(*Node\TextContent) <> "")  ; Whitespace handling
           AddElement(Runs())
-          Runs()\Text = FixMojibakeUTF8(*Node\TextContent)
+          Protected rawText.s = FixMojibakeUTF8(*Node\TextContent)
+          ; CSS 1: text-transform anwenden
+          If ParentTextTransform > 0
+            rawText = ApplyTextTransform(rawText, ParentTextTransform)
+          EndIf
+          Runs()\Text = rawText
           Runs()\FontSize = ParentFontSize
           Runs()\FontStyle = ParentFontStyle
           Runs()\FontFamily = ParentFontFamily
@@ -270,6 +321,9 @@ Module Layout
           Runs()\TextDecoration = ParentDecoration
           Runs()\IsSubscript = ParentSub
           Runs()\IsSuperscript = ParentSup
+          Runs()\FontVariant = ParentFontVariant
+          Runs()\LetterSpacing = ParentLetterSpacing
+          Runs()\WordSpacing = ParentWordSpacing
         EndIf
 
       Case HTMLParser::#NodeType_Element
@@ -341,6 +395,18 @@ Module Layout
         ; Text-Decoration: ComputedStyle enthält bereits Vererbung
         Decoration = CSSStyle\TextDecoration
 
+        ; CSS 1: text-transform, font-variant, word/letter-spacing erben
+        Protected childTextTransform.i = ParentTextTransform
+        Protected childFontVariant.i = ParentFontVariant
+        Protected childLetterSpacing.i = ParentLetterSpacing
+        Protected childWordSpacing.i = ParentWordSpacing
+        If CSSStyle\TextTransform > 0 Or FindMapElement(*Node\Attributes(), "css-text-transform")
+          childTextTransform = CSSStyle\TextTransform
+        EndIf
+        childFontVariant = CSSStyle\FontVariant
+        childLetterSpacing = CSSStyle\LetterSpacing
+        childWordSpacing = CSSStyle\WordSpacing
+
         ; white-space erben/überschreiben (für <pre> / css-white-space)
         Protected childWS.i = WhiteSpaceMode
         If *Node\ElementType = HTMLParser::#Element_PRE
@@ -360,7 +426,8 @@ Module Layout
         ; Rekursiv durch Children
         ForEach *Node\Children()
           CollectInlineRuns(*Node\Children(), Runs(), FontSize, FontStyle, FontFamily, Color,
-                            Decoration, IsSub, IsSup, childWS)
+                            Decoration, IsSub, IsSup, childWS,
+                            childTextTransform, childFontVariant, childLetterSpacing, childWordSpacing)
         Next
     EndSelect
   EndProcedure
@@ -403,9 +470,7 @@ Module Layout
            HTMLParser::#Element_UL, HTMLParser::#Element_OL, HTMLParser::#Element_LI,
            HTMLParser::#Element_DL, HTMLParser::#Element_DT, HTMLParser::#Element_DD,
            HTMLParser::#Element_MENU, HTMLParser::#Element_DIR,
-           HTMLParser::#Element_HEADER, HTMLParser::#Element_FOOTER, HTMLParser::#Element_NAV,
-           HTMLParser::#Element_SECTION, HTMLParser::#Element_ARTICLE, HTMLParser::#Element_ASIDE,
-           HTMLParser::#Element_MAIN, HTMLParser::#Element_ADDRESS, HTMLParser::#Element_CENTER,
+           HTMLParser::#Element_ADDRESS, HTMLParser::#Element_CENTER,
            HTMLParser::#Element_TABLE, HTMLParser::#Element_TR, HTMLParser::#Element_THEAD,
            HTMLParser::#Element_TBODY, HTMLParser::#Element_TFOOT,
            HTMLParser::#Element_BLOCKQUOTE, HTMLParser::#Element_PRE,
@@ -827,15 +892,28 @@ Procedure WrapInlineRunsToBox(*Box.LayoutBox, List Runs.InlineRun(), MaxWidth.i,
         *Box\PaddingBottom = CSSStyle\PaddingBottom
         *Box\PaddingLeft = CSSStyle\PaddingLeft
 
-        ; Border
+        ; CSS 1 Text-Properties
+        *Box\TextIndent = CSSStyle\TextIndent
+        *Box\TextTransform = CSSStyle\TextTransform
+        *Box\FontVariant = CSSStyle\FontVariant
+        *Box\WordSpacing = CSSStyle\WordSpacing
+        *Box\LetterSpacing = CSSStyle\LetterSpacing
+        *Box\VerticalAlign = CSSStyle\VerticalAlign
+
+        ; Border (per-side + compat)
+        *Box\BorderTopWidth = CSSStyle\BorderTopWidth
+        *Box\BorderRightWidth = CSSStyle\BorderRightWidth
+        *Box\BorderBottomWidth = CSSStyle\BorderBottomWidth
+        *Box\BorderLeftWidth = CSSStyle\BorderLeftWidth
         *Box\BorderWidth = CSSStyle\BorderWidth
         *Box\BorderStyle = CSSStyle\BorderStyle
         *Box\BorderColor = CSSStyle\BorderColor
 
         Debug "[LayoutNode] <" + *Node\TagName + "> Border: W=" + Str(*Box\BorderWidth) + " S=" + Str(*Box\BorderStyle) + " C=" + Str(*Box\BorderColor)
 
-        ; Display
+        ; Classification
         *Box\Display = CSSStyle\Display
+        *Box\ListStyleType = CSSStyle\ListStyleType
 
         ; Sub/Super Override (HTML 4 Elements)
         *Box\IsSubscript = 0
@@ -974,9 +1052,7 @@ Procedure WrapInlineRunsToBox(*Box.LayoutBox, List Runs.InlineRun(), MaxWidth.i,
               CurrentY + mBottom
             EndIf
 
-          Case HTMLParser::#Element_DIV, HTMLParser::#Element_SECTION,
-               HTMLParser::#Element_ARTICLE, HTMLParser::#Element_HEADER, HTMLParser::#Element_FOOTER,
-               HTMLParser::#Element_NAV, HTMLParser::#Element_MAIN, HTMLParser::#Element_ASIDE,
+          Case HTMLParser::#Element_DIV,
                HTMLParser::#Element_ADDRESS, HTMLParser::#Element_CENTER, HTMLParser::#Element_BLOCKQUOTE,
                HTMLParser::#Element_FIELDSET
 
@@ -1133,6 +1209,24 @@ Case HTMLParser::#Element_UL, HTMLParser::#Element_OL, HTMLParser::#Element_MENU
             *Box\Box\X = CurrentX
             *Box\Box\Y = CurrentY
             *Box\Box\Width = ViewportWidth - CurrentX
+
+            ; OL-Nummerierung: Zähle LI-Index im Parent
+            If *Node\Parent And (*Node\Parent\ElementType = HTMLParser::#Element_OL)
+              Protected liIdx.i = 0
+              ForEach *Node\Parent\Children()
+                If *Node\Parent\Children()\ElementType = HTMLParser::#Element_LI
+                  liIdx + 1
+                EndIf
+                If *Node\Parent\Children() = *Node
+                  Break
+                EndIf
+              Next
+              *Box\ListItemIndex = liIdx
+              ; Default list-style-type für OL: decimal (3)
+              If *Box\ListStyleType = 0
+                *Box\ListStyleType = 3
+              EndIf
+            EndIf
 
             If HasOnlyInlineContent(*Node)
               Protected NewList liRuns.InlineRun()
