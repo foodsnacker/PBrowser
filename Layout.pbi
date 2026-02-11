@@ -403,9 +403,7 @@ Module Layout
            HTMLParser::#Element_UL, HTMLParser::#Element_OL, HTMLParser::#Element_LI,
            HTMLParser::#Element_DL, HTMLParser::#Element_DT, HTMLParser::#Element_DD,
            HTMLParser::#Element_MENU, HTMLParser::#Element_DIR,
-           HTMLParser::#Element_HEADER, HTMLParser::#Element_FOOTER, HTMLParser::#Element_NAV,
-           HTMLParser::#Element_SECTION, HTMLParser::#Element_ARTICLE, HTMLParser::#Element_ASIDE,
-           HTMLParser::#Element_MAIN, HTMLParser::#Element_ADDRESS, HTMLParser::#Element_CENTER,
+           HTMLParser::#Element_ADDRESS, HTMLParser::#Element_CENTER,
            HTMLParser::#Element_TABLE, HTMLParser::#Element_TR, HTMLParser::#Element_THEAD,
            HTMLParser::#Element_TBODY, HTMLParser::#Element_TFOOT,
            HTMLParser::#Element_BLOCKQUOTE, HTMLParser::#Element_PRE,
@@ -974,9 +972,7 @@ Procedure WrapInlineRunsToBox(*Box.LayoutBox, List Runs.InlineRun(), MaxWidth.i,
               CurrentY + mBottom
             EndIf
 
-          Case HTMLParser::#Element_DIV, HTMLParser::#Element_SECTION,
-               HTMLParser::#Element_ARTICLE, HTMLParser::#Element_HEADER, HTMLParser::#Element_FOOTER,
-               HTMLParser::#Element_NAV, HTMLParser::#Element_MAIN, HTMLParser::#Element_ASIDE,
+          Case HTMLParser::#Element_DIV,
                HTMLParser::#Element_ADDRESS, HTMLParser::#Element_CENTER, HTMLParser::#Element_BLOCKQUOTE,
                HTMLParser::#Element_FIELDSET
 
