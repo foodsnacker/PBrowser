@@ -1,7 +1,13 @@
 ; ============================================================================
-; BrowserUI.pbi v0.2.0 - HTML 4 RENDERING
-; Rendering mit Text-Dekorationen:
-; - Underline, Strikethrough
+; BrowserUI.pbi v0.3.0 - CSS 1 RENDERING
+; Rendering mit CSS 1 Properties:
+; - Background-Color pro Box
+; - Per-Side Border (top/right/bottom/left)
+; - text-indent, text-transform, font-variant (small-caps)
+; - word-spacing, letter-spacing
+; - list-style-type (disc/circle/square/decimal/roman/alpha/none)
+; - OL-Nummerierung
+; - Underline, Strikethrough, Overline
 ; - Subscript, Superscript mit Y-Offset
 ; ============================================================================
 
@@ -277,93 +283,177 @@ Module BrowserUI
     RenderLayout(*CurrentLayout, *CurrentDoc)
   EndProcedure
   
+  ; -------------------------------------------------------
+  ; CSS 1 Helper: Text mit Letter-Spacing zeichnen
+  ; -------------------------------------------------------
+  Procedure.i DrawTextWithLetterSpacing(X.i, Y.i, Text.s, Color.i, Spacing.i)
+    Protected lsi.i, lsch.s, lsw.i
+    Protected lsX.i = X
+    For lsi = 1 To Len(Text)
+      lsch = Mid(Text, lsi, 1)
+      DrawText(lsX, Y, lsch, Color)
+      lsw = TextWidth(lsch)
+      lsX + lsw + Spacing
+    Next
+    ProcedureReturn lsX - X
+  EndProcedure
+
+  ; CSS 1 Helper: Textbreite mit Letter-Spacing messen
+  Procedure.i MeasureWithLetterSpacing(Text.s, Spacing.i)
+    Protected mli.i, mlch.s, mlTotal.i = 0
+    For mli = 1 To Len(Text)
+      mlch = Mid(Text, mli, 1)
+      mlTotal + TextWidth(mlch) + Spacing
+    Next
+    If Len(Text) > 0
+      mlTotal - Spacing  ; letztes Zeichen ohne Spacing
+    EndIf
+    ProcedureReturn mlTotal
+  EndProcedure
+
+  ; CSS 1 Helper: List-Marker formatieren
+  Procedure.s FormatListMarker(Index.i, StyleType.i)
+    Select StyleType
+      Case 0  ; disc
+        ProcedureReturn Chr($2022) + " "
+      Case 1  ; circle
+        ProcedureReturn Chr($25CB) + " "
+      Case 2  ; square
+        ProcedureReturn Chr($25A0) + " "
+      Case 3  ; decimal
+        ProcedureReturn Str(Index) + ". "
+      Case 4  ; lower-roman
+        Protected roman.s = ""
+        Protected rn.i = Index
+        While rn >= 10 : roman + "x" : rn - 10 : Wend
+        If rn >= 9 : roman + "ix" : rn - 9 : EndIf
+        If rn >= 5 : roman + "v" : rn - 5 : EndIf
+        If rn >= 4 : roman + "iv" : rn - 4 : EndIf
+        While rn >= 1 : roman + "i" : rn - 1 : Wend
+        ProcedureReturn roman + ". "
+      Case 5  ; upper-roman
+        Protected uroman.s = ""
+        Protected urn.i = Index
+        While urn >= 10 : uroman + "X" : urn - 10 : Wend
+        If urn >= 9 : uroman + "IX" : urn - 9 : EndIf
+        If urn >= 5 : uroman + "V" : urn - 5 : EndIf
+        If urn >= 4 : uroman + "IV" : urn - 4 : EndIf
+        While urn >= 1 : uroman + "I" : urn - 1 : Wend
+        ProcedureReturn uroman + ". "
+      Case 6  ; lower-alpha
+        If Index >= 1 And Index <= 26
+          ProcedureReturn Chr(96 + Index) + ". "
+        EndIf
+        ProcedureReturn Str(Index) + ". "
+      Case 7  ; upper-alpha
+        If Index >= 1 And Index <= 26
+          ProcedureReturn Chr(64 + Index) + ". "
+        EndIf
+        ProcedureReturn Str(Index) + ". "
+      Case 8  ; none
+        ProcedureReturn ""
+      Default
+        ProcedureReturn Chr($2022) + " "
+    EndSelect
+  EndProcedure
+
+  ; CSS 1 Helper: Eine Border-Seite zeichnen (Solid/Dashed/Dotted)
+  Procedure DrawBorderSide(X1.i, Y1.i, X2.i, Y2.i, Width.i, Style.i, Color.i)
+    If Width <= 0 Or Style = 0
+      ProcedureReturn
+    EndIf
+    Protected bsi.i, bsLen.i
+    Protected isHoriz.i = Bool(Y1 = Y2)
+
+    Select Style
+      Case 1  ; Solid
+        If isHoriz
+          Box(X1, Y1, X2 - X1, Width, Color)
+        Else
+          Box(X1, Y1, Width, Y2 - Y1, Color)
+        EndIf
+      Case 2  ; Dashed
+        If isHoriz
+          bsLen = X2 - X1
+          For bsi = 0 To bsLen Step 10
+            Protected dw.i = 5 : If bsi + 5 > bsLen : dw = bsLen - bsi : EndIf
+            Box(X1 + bsi, Y1, dw, Width, Color)
+          Next
+        Else
+          bsLen = Y2 - Y1
+          For bsi = 0 To bsLen Step 10
+            Protected dh.i = 5 : If bsi + 5 > bsLen : dh = bsLen - bsi : EndIf
+            Box(X1, Y1 + bsi, Width, dh, Color)
+          Next
+        EndIf
+      Case 3  ; Dotted
+        If isHoriz
+          For bsi = X1 To X2 Step 3
+            Box(bsi, Y1, 1, Width, Color)
+          Next
+        Else
+          For bsi = Y1 To Y2 Step 3
+            Box(X1, bsi, Width, 1, Color)
+          Next
+        EndIf
+    EndSelect
+  EndProcedure
+
+  ; -------------------------------------------------------
+  ; DrawLayoutBox - Hauptrenderingfunktion
+  ; -------------------------------------------------------
   Procedure DrawLayoutBox(*Box.Layout::LayoutBox, *Doc.Document::Document)
     Protected ImgSrc.s, ImgID.i
     Protected Font.i
     Protected LineY.i
-    
+
     If Not *Box Or Not *Box\DOMNode
       ProcedureReturn
     EndIf
-    
+
     If *Box\DOMNode\Hidden
       ProcedureReturn
     EndIf
-    
-    ; Rendere Border wenn vorhanden
-    If *Box\BorderWidth > 0 And *Box\BorderStyle > 0
+
+    ; ========== CSS 1: Background-Color pro Box ==========
+    If *Box\BackgroundColor <> RGB(255, 255, 255) And *Box\Box\Width > 0 And *Box\Box\Height > 0
+      DrawingMode(#PB_2DDrawing_Default)
+      Box(*Box\Box\X, *Box\Box\Y, *Box\Box\Width, *Box\Box\Height, *Box\BackgroundColor)
+      DrawingMode(#PB_2DDrawing_Transparent)
+    EndIf
+
+    ; ========== CSS 1: Per-Side Border Rendering ==========
+    If *Box\BorderStyle > 0 And *Box\Box\Width > 0 And *Box\Box\Height > 0
       Protected BorderX.i = *Box\Box\X
       Protected BorderY.i = *Box\Box\Y
       Protected BorderW.i = *Box\Box\Width
       Protected BorderH.i = *Box\Box\Height
-      
-      Debug "[Border] Element: " + *Box\DOMNode\TagName + " X:" + Str(BorderX) + " Y:" + Str(BorderY) + " W:" + Str(BorderW) + " H:" + Str(BorderH) + " Style:" + Str(*Box\BorderStyle)
-      
-      ; Setze DrawingMode für Borders
-      DrawingMode(#PB_2DDrawing_Outlined)
-      
-      Select *Box\BorderStyle
-        Case 1  ; Solid
-          Box(BorderX, BorderY, BorderW, BorderH, *Box\BorderColor)
-          
-        Case 2  ; Dashed
-          ; Zeichne gestrichelte Linie (simplified)
-          ; Step kann in PureBasic keine Variable sein, daher hardcoded
-          Protected i.i
-          
-          ; Top
-          For i = BorderX To BorderX + BorderW Step 10
-            Line(i, BorderY, 5, 1, *Box\BorderColor)
-          Next
-          
-          ; Bottom
-          For i = BorderX To BorderX + BorderW Step 10
-            Line(i, BorderY + BorderH, 5, 1, *Box\BorderColor)
-          Next
-          
-          ; Left
-          For i = BorderY To BorderY + BorderH Step 10
-            Line(BorderX, i, 1, 5, *Box\BorderColor)
-          Next
-          
-          ; Right
-          For i = BorderY To BorderY + BorderH Step 10
-            Line(BorderX + BorderW, i, 1, 5, *Box\BorderColor)
-          Next
-          
-        Case 3  ; Dotted
-          ; Zeichne gepunktete Linie
-          ; Step kann in PureBasic keine Variable sein, daher hardcoded
-          Protected j.i
-          
-          ; Top
-          For j = BorderX To BorderX + BorderW Step 3
-            Plot(j, BorderY, *Box\BorderColor)
-          Next
-          
-          ; Bottom
-          For j = BorderX To BorderX + BorderW Step 3
-            Plot(j, BorderY + BorderH, *Box\BorderColor)
-          Next
-          
-          ; Left
-          For j = BorderY To BorderY + BorderH Step 3
-            Plot(BorderX, j, *Box\BorderColor)
-          Next
-          
-          ; Right
-          For j = BorderY To BorderY + BorderH Step 3
-            Plot(BorderX + BorderW, j, *Box\BorderColor)
-          Next
-      EndSelect
-      
-      ; Setze DrawingMode zurück für Text
+
+      DrawingMode(#PB_2DDrawing_Default)
+
+      ; Top
+      If *Box\BorderTopWidth > 0
+        DrawBorderSide(BorderX, BorderY, BorderX + BorderW, BorderY, *Box\BorderTopWidth, *Box\BorderStyle, *Box\BorderColor)
+      EndIf
+      ; Bottom
+      If *Box\BorderBottomWidth > 0
+        DrawBorderSide(BorderX, BorderY + BorderH - *Box\BorderBottomWidth, BorderX + BorderW, BorderY + BorderH - *Box\BorderBottomWidth, *Box\BorderBottomWidth, *Box\BorderStyle, *Box\BorderColor)
+      EndIf
+      ; Left
+      If *Box\BorderLeftWidth > 0
+        DrawBorderSide(BorderX, BorderY, BorderX, BorderY + BorderH, *Box\BorderLeftWidth, *Box\BorderStyle, *Box\BorderColor)
+      EndIf
+      ; Right
+      If *Box\BorderRightWidth > 0
+        DrawBorderSide(BorderX + BorderW - *Box\BorderRightWidth, BorderY, BorderX + BorderW - *Box\BorderRightWidth, BorderY + BorderH, *Box\BorderRightWidth, *Box\BorderStyle, *Box\BorderColor)
+      EndIf
+
       DrawingMode(#PB_2DDrawing_Transparent)
     EndIf
-    
+
     Select *Box\DOMNode\Type
       Case HTMLParser::#NodeType_Element
-        ; STAGE 2: InlineRuns auch bei Element-Boxen rendern (z.B. <p>, <h1>, <li>, <div> inline)
+        ; STAGE 2: InlineRuns auch bei Element-Boxen rendern
         If ListSize(*Box\InlineRuns()) > 0 And ListSize(*Box\LineRunCounts()) > 0
           DrawingMode(#PB_2DDrawing_Transparent)
 
@@ -378,7 +468,7 @@ Module BrowserUI
           Protected lineH.i = *Box\LineHeight
           If lineH <= 0 : lineH = *Box\FontSize + 6 : EndIf
 
-          ; Copy Lists to Arrays (einfache Indexierung)
+          ; Copy Lists to Arrays
           Protected runTotal.i = ListSize(*Box\InlineRuns())
           If runTotal <= 0
             Goto SkipInlineRuns
@@ -408,8 +498,7 @@ Module BrowserUI
           For li = 0 To lineTotal - 1
             Protected c.i = lineCounts(li)
 
-            ; Breite dieser Zeile exakt berechnen (gemischte Fonts, Tabs berücksichtigt)
-            ; TabStops: orientieren sich an der Breite von 8 Spaces im Base-Font.
+            ; Zeilenbreite messen
             Protected baseF.i = GetOrLoadFont(BaseFont, *Box\FontSize, *Box\FontStyle, #False)
             If baseF : DrawingFont(FontID(baseF)) : EndIf
             Protected tabW.i = TextWidth("        ")
@@ -428,12 +517,16 @@ Module BrowserUI
               If HasTab(runs(runIndex + k)\Text)
                 hasTabsInLine = #True
               EndIf
-              curX = MeasureTextWithTabs(0, curX, runs(runIndex + k)\Text, tabW)
+              ; Berücksichtige Letter-Spacing beim Messen
+              If runs(runIndex + k)\LetterSpacing > 0
+                curX + MeasureWithLetterSpacing(runs(runIndex + k)\Text, runs(runIndex + k)\LetterSpacing)
+              Else
+                curX = MeasureTextWithTabs(0, curX, runs(runIndex + k)\Text, tabW)
+              EndIf
             Next
             lineW = curX
 
-            ; Justify: Extra pro SPACE-RUN ("  " zählt als 1), nicht auf letzter Zeile
-            ; Bei Tabs deaktivieren (Tabs sind feste Stops)
+            ; Justify
             Protected justifyExtra.f = 0.0
             If *Box\TextAlign = 3 And li < lineTotal - 1 And hasTabsInLine = #False
               Protected gaps.i = 0
@@ -447,21 +540,30 @@ Module BrowserUI
             EndIf
 
             Protected x.i = startX
+            ; CSS 1: text-indent auf erste Zeile
+            If li = 0 And *Box\TextIndent <> 0
+              x + *Box\TextIndent
+            EndIf
+
             Select *Box\TextAlign
-              Case 1 ; center
-                x = startX + (availW - lineW) / 2
-              Case 2 ; right
-                x = startX + (availW - lineW)
-              Default
-                ; left/justify -> left
+              Case 1 : x = startX + (availW - lineW) / 2
+              Case 2 : x = startX + (availW - lineW)
             EndSelect
 
-            ; Bullet (nur für LI) - einmalig
+            ; CSS 1: List-Marker (LI) - einmalig
             If *Box\DOMNode\ElementType = HTMLParser::#Element_LI And bulletDone = #False
               Protected bf.i = GetOrLoadFont(BaseFont, *Box\FontSize, *Box\FontStyle, #False)
               If bf
                 DrawingFont(FontID(bf))
-                DrawText(startX - TextWidth("• "), y, "• ", *Box\Color)
+                Protected listType.i = *Box\ListStyleType
+                ; OL-Default: decimal wenn nicht explizit gesetzt
+                If *Box\DOMNode\Parent And *Box\DOMNode\Parent\ElementType = HTMLParser::#Element_OL And listType = 0
+                  listType = 3
+                EndIf
+                Protected marker.s = FormatListMarker(*Box\ListItemIndex, listType)
+                If marker <> ""
+                  DrawText(startX - TextWidth(marker), y, marker, *Box\Color)
+                EndIf
               EndIf
               bulletDone = #True
             EndIf
@@ -473,7 +575,16 @@ Module BrowserUI
               Protected txt.s = runs(runIndex)\Text
               Protected fam2.s = runs(runIndex)\FontFamily
               If fam2 = "" : fam2 = BaseFont : EndIf
-              Protected rf.i = GetOrLoadFont(fam2, runs(runIndex)\FontSize, runs(runIndex)\FontStyle, #False)
+
+              ; CSS 1: font-variant: small-caps (vereinfacht: uppercase + 80% size)
+              Protected renderSize.i = runs(runIndex)\FontSize
+              Protected renderStyle.i = runs(runIndex)\FontStyle
+              If runs(runIndex)\FontVariant = 1
+                txt = UCase(txt)
+                renderSize = Int(runs(runIndex)\FontSize * 0.8)
+              EndIf
+
+              Protected rf.i = GetOrLoadFont(fam2, renderSize, renderStyle, #False)
               If rf : DrawingFont(FontID(rf)) : EndIf
 
               Protected yOff.i = 0
@@ -487,7 +598,11 @@ Module BrowserUI
               Protected x2.i
               Protected w.i
 
-              If HasTab(txt)
+              ; CSS 1: Letter-Spacing
+              If runs(runIndex)\LetterSpacing > 0 And Not HasTab(txt)
+                w = DrawTextWithLetterSpacing(drawX, y + yOff, txt, runs(runIndex)\Color, runs(runIndex)\LetterSpacing)
+                x2 = drawX + w
+              ElseIf HasTab(txt)
                 x2 = DrawTextWithTabs(drawX, y + yOff, startX, txt, runs(runIndex)\Color, tabW)
                 w = x2 - drawX
               Else
@@ -496,19 +611,23 @@ Module BrowserUI
                 x2 = drawX + w
               EndIf
 
-              ; Decoration-Positionen etwas stabiler (Top-basierte DrawText Koordinaten)
+              ; CSS 1: Word-Spacing (Extra zu justify)
+              If runs(runIndex)\WordSpacing > 0
+                Protected wsGaps.i = CountSpaceRuns(txt)
+                x2 + (wsGaps * runs(runIndex)\WordSpacing)
+                w + (wsGaps * runs(runIndex)\WordSpacing)
+              EndIf
+
+              ; Text-Decoration
               Select runs(runIndex)\TextDecoration
-                Case 1 ; underline
-                  Line(drawX, y + yOff + Int(runs(runIndex)\FontSize * 0.92), w, 1, runs(runIndex)\Color)
-                Case 2 ; line-through
-                  Line(drawX, y + yOff + Int(runs(runIndex)\FontSize * 0.55), w, 1, runs(runIndex)\Color)
-                Case 3 ; overline
-                  Line(drawX, y + yOff + 1, w, 1, runs(runIndex)\Color)
+                Case 1 : Line(drawX, y + yOff + Int(runs(runIndex)\FontSize * 0.92), w, 1, runs(runIndex)\Color)
+                Case 2 : Line(drawX, y + yOff + Int(runs(runIndex)\FontSize * 0.55), w, 1, runs(runIndex)\Color)
+                Case 3 : Line(drawX, y + yOff + 1, w, 1, runs(runIndex)\Color)
               EndSelect
 
               x = x2
 
-              ; Better-Justify: Extra pro SPACE-RUN (nicht bei Tabs)
+              ; Justify Extra
               If justifyExtra > 0.0 And HasTab(txt) = #False
                 Protected gapRunsHere.i = CountSpaceRuns(txt)
                 x + Int(justifyExtra * gapRunsHere)
@@ -547,81 +666,56 @@ Module BrowserUI
         EndSelect
 
       Case HTMLParser::#NodeType_Text
-        ; FontFamily from CSS or default to Arial
         Protected FontName.s = "Arial"
         If *Box\FontFamily <> ""
           FontName = *Box\FontFamily
         EndIf
-        
-        
+
         Font = GetOrLoadFont(FontName, *Box\FontSize, *Box\FontStyle, #False)
-        
+
         If Font
           DrawingFont(FontID(Font))
           DrawingMode(#PB_2DDrawing_Transparent)
-          
+
           LineY = *Box\Box\Y
-          
-          ; Vertikale Verschiebung für Sub/Superscript
+
           Protected YOffset.i = 0
           If *Box\IsSubscript
-            YOffset = *Box\FontSize / 3  ; nach unten verschieben
+            YOffset = *Box\FontSize / 3
           ElseIf *Box\IsSuperscript
-            YOffset = -*Box\FontSize / 3  ; nach oben verschieben
+            YOffset = -*Box\FontSize / 3
           EndIf
-          
+
           ForEach *Box\WrappedLines()
             Protected DisplayText.s = *Box\WrappedLines()
             Protected TextX.i = *Box\Box\X
             Protected TextY.i = LineY + YOffset
-            
-            ; Bullet für Listen
+
+            ; Bullet für Listen (Fallback für Text-Node-Pfad)
             If *Box\DOMNode\Parent And *Box\DOMNode\Parent\ElementType = HTMLParser::#Element_LI
-              DisplayText = "• " + DisplayText
+              DisplayText = Chr($2022) + " " + DisplayText
             EndIf
-            
-            ; Text-Align anwenden
+
             Protected LineTextWidth.i = TextWidth(DisplayText)
             Protected AvailableWidth.i = *Box\Box\Width
-            
-            ; Fallback wenn Box-Width nicht gesetzt
             If AvailableWidth <= 0
-              AvailableWidth = ContentWidth - TextX - 20  ; 20px Padding rechts
+              AvailableWidth = ContentWidth - TextX - 20
             EndIf
-            
+
             Select *Box\TextAlign
-              Case 1  ; Center
-                TextX = TextX + (AvailableWidth - LineTextWidth) / 2
-              Case 2  ; Right
-                TextX = TextX + (AvailableWidth - LineTextWidth)
-              Case 3  ; Justify (simplified - just left-align for now)
-                ; Justify würde Wort-Spacing anpassen, für jetzt: left-align
-                TextX = TextX
-              Default  ; Left (0)
-                TextX = TextX
+              Case 1 : TextX = TextX + (AvailableWidth - LineTextWidth) / 2
+              Case 2 : TextX = TextX + (AvailableWidth - LineTextWidth)
             EndSelect
-            
-            ; Text zeichnen
+
             DrawText(TextX, TextY, DisplayText, *Box\Color)
-            
-            ; Text-Dekorationen zeichnen
-            Protected TextWidth.i = LineTextWidth
-            
+
+            Protected TextW.i = LineTextWidth
             Select *Box\TextDecoration
-              Case 1  ; Underline
-                Protected UnderlineY.i = TextY + *Box\FontSize + 2
-                Line(TextX, UnderlineY, TextWidth, 1, *Box\Color)
-                
-              Case 2  ; Line-through (Strikethrough)
-                Protected StrikeY.i = TextY + (*Box\FontSize / 2)
-                Line(TextX, StrikeY, TextWidth, 1, *Box\Color)
-                
-              Case 3  ; Overline
-                Protected OverlineY.i = TextY - 2
-                Line(TextX, OverlineY, TextWidth, 1, *Box\Color)
+              Case 1 : Line(TextX, TextY + *Box\FontSize + 2, TextW, 1, *Box\Color)
+              Case 2 : Line(TextX, TextY + (*Box\FontSize / 2), TextW, 1, *Box\Color)
+              Case 3 : Line(TextX, TextY - 2, TextW, 1, *Box\Color)
             EndSelect
-            
-            ; Nutze LineHeight statt hardcoded spacing
+
             Protected ActualLineHeight.i = *Box\LineHeight
             If ActualLineHeight <= 0
               ActualLineHeight = *Box\FontSize + 6
@@ -629,9 +723,9 @@ Module BrowserUI
             LineY + ActualLineHeight
           Next
         EndIf
-        
+
     EndSelect
-    
+
     ForEach *Box\Children()
       DrawLayoutBox(*Box\Children(), *Doc)
     Next
