@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>PBrowser Feature Test - CSS 1 Complete</title>
+<style>
+body {
+  font-family: Arial;
+  font-size: 14px;
+  color: #000;
+  margin: 10px;
+}
+
+h1 { color: #333; text-align: center; }
+h2 { color: #555; border-bottom: 2px solid #999; padding-bottom: 5px; }
+h3 { color: #666; }
+
+/* Float Demo */
+.float-left {
+  float: left;
+  width: 150px;
+  background-color: #ddeeff;
+  border: 2px solid #4488bb;
+  padding: 10px;
+  margin: 5px 15px 5px 0px;
+}
+.float-right {
+  float: right;
+  width: 150px;
+  background-color: #ffeedd;
+  border: 2px solid #bb8844;
+  padding: 10px;
+  margin: 5px 0px 5px 15px;
+}
+.clear-both { clear: both; }
+.clear-left { clear: left; }
+
+/* Table Styles */
+table {
+  border: 1px solid #333;
+  margin: 10px 0px;
+}
+th {
+  background-color: #4477aa;
+  color: #ffffff;
+  padding: 8px;
+  border: 1px solid #336699;
+}
+td {
+  padding: 6px;
+  border: 1px solid #cccccc;
+}
+tr.alt { background-color: #f0f0f0; }
+
+/* Box Model Demo */
+.box-demo {
+  background-color: #e8f5e9;
+  border: 3px solid #4caf50;
+  padding: 15px;
+  margin: 10px 20px;
+}
+.box-nested {
+  background-color: #fff3e0;
+  border: 2px dashed #ff9800;
+  padding: 10px;
+  margin: 5px;
+}
+
+/* Text Styles */
+.red { color: #cc0000; }
+.blue { color: #0000cc; }
+.green { color: #008800; }
+.highlight { background-color: #ffff00; }
+.indent { text-indent: 40px; }
+.spaced { letter-spacing: 3px; }
+.wide-words { word-spacing: 8px; }
+.smallcaps { font-variant: small-caps; }
+
+/* List Styles */
+ul.squares { list-style-type: square; }
+ol.roman { list-style-type: upper-roman; }
+ol.alpha { list-style-type: lower-alpha; }
+</style>
+</head>
+<body>
+
+<h1>PBrowser v1.0 - Feature Test</h1>
+
+<!-- ==================== STEP 1-2: Text & Inline Formatting ==================== -->
+<h2>1. Text &amp; Inline Formatting</h2>
+
+<p>Dies ist ein normaler Absatz mit <strong>fettem Text</strong>, <em>kursivem Text</em>,
+<u>unterstrichenem Text</u> und <s>durchgestrichenem Text</s>.</p>
+
+<p>Inline-Elemente: <code>monospace code</code>, <small>kleiner Text</small>,
+<big>grosser Text</big>, H<sub>2</sub>O und E=mc<sup>2</sup>.</p>
+
+<p class="indent">Dieser Absatz hat ein Text-Indent von 40px. Die erste Zeile ist eingerueckt,
+alle weiteren Zeilen beginnen normal am linken Rand.</p>
+
+<p class="spaced">Letter-Spacing: 3px extra zwischen jedem Buchstaben.</p>
+
+<p class="wide-words">Word-Spacing: Extra Abstand zwischen den einzelnen Woertern hier.</p>
+
+<p class="smallcaps">Dies ist Text in Small-Caps Font-Variant dargestellt.</p>
+
+<p>Farben: <span class="red">Roter Text</span>, <span class="blue">Blauer Text</span>,
+<span class="green">Gruener Text</span>, <span class="highlight">Gelb hervorgehoben</span>.</p>
+
+<!-- ==================== STEP 3: Box Model & Borders ==================== -->
+<h2>2. Box Model &amp; Borders</h2>
+
+<div class="box-demo">
+  <p>Aeussere Box: gruener 3px Solid-Border, 15px Padding, 10px/20px Margin.</p>
+  <div class="box-nested">
+    <p>Innere Box: oranger 2px Dashed-Border, 10px Padding, 5px Margin.</p>
+  </div>
+</div>
+
+<!-- ==================== STEP 4: Lists ==================== -->
+<h2>3. Listen</h2>
+
+<h3>Unordered List (disc, default)</h3>
+<ul>
+  <li>Erster Punkt</li>
+  <li>Zweiter Punkt</li>
+  <li>Dritter Punkt</li>
+</ul>
+
+<h3>Unordered List (square)</h3>
+<ul class="squares">
+  <li>Quadrat-Punkt A</li>
+  <li>Quadrat-Punkt B</li>
+</ul>
+
+<h3>Ordered List (decimal, default)</h3>
+<ol>
+  <li>Erstens</li>
+  <li>Zweitens</li>
+  <li>Drittens</li>
+</ol>
+
+<h3>Ordered List (upper-roman)</h3>
+<ol class="roman">
+  <li>Roemisch Eins</li>
+  <li>Roemisch Zwei</li>
+  <li>Roemisch Drei</li>
+</ol>
+
+<h3>Ordered List (lower-alpha)</h3>
+<ol class="alpha">
+  <li>Alpha Eins</li>
+  <li>Alpha Zwei</li>
+  <li>Alpha Drei</li>
+</ol>
+
+<h3>Definition List</h3>
+<dl>
+  <dt><strong>HTML</strong></dt>
+  <dd>HyperText Markup Language - die Struktur des Webs.</dd>
+  <dt><strong>CSS</strong></dt>
+  <dd>Cascading Style Sheets - das Aussehen des Webs.</dd>
+</dl>
+
+<!-- ==================== STEP 5: Float & Clear ==================== -->
+<h2>4. Float &amp; Clear</h2>
+
+<div class="float-left">
+  <strong>Float: Left</strong><br>
+  Diese Box schwebt links. Der Text fliesst rechts herum.
+</div>
+
+<p>Dies ist ein laengerer Absatz, der neben der links schwebenden Box angezeigt werden soll.
+Der Text fliesst um das Float-Element herum und nutzt den verbleibenden Platz rechts davon.
+Wenn genug Text vorhanden ist, wird er unter dem Float-Element normal weiterlaufen,
+sobald die Hoehe des Floats ueberschritten ist.</p>
+
+<div class="clear-both"></div>
+
+<div class="float-right">
+  <strong>Float: Right</strong><br>
+  Diese Box schwebt rechts.
+</div>
+
+<p>Dieser Text erscheint links neben dem rechts schwebenden Element.
+Float-Right positioniert die Box am rechten Rand des verfuegbaren Raums.
+Der normale Textfluss passt sich an und nutzt den Platz links vom Float.</p>
+
+<div class="clear-both"></div>
+
+<div class="float-left">
+  <strong>Links A</strong><br>
+  Erstes Float
+</div>
+<div class="float-left">
+  <strong>Links B</strong><br>
+  Zweites Float
+</div>
+
+<p>Zwei Float-Left Elemente nebeneinander. Der Text fliesst um beide herum.
+Dies demonstriert, dass mehrere Floats korrekt nebeneinander gestapelt werden.</p>
+
+<p class="clear-left">Dieser Absatz hat <code>clear: left</code> und beginnt unterhalb der linken Floats.</p>
+
+<!-- ==================== STEP 6: Table Layout ==================== -->
+<h2>5. Table Layout</h2>
+
+<h3>Einfache Tabelle</h3>
+<table>
+  <tr>
+    <th>Name</th>
+    <th>Typ</th>
+    <th>Version</th>
+    <th>Status</th>
+  </tr>
+  <tr>
+    <td>HTMLParser</td>
+    <td>Parser</td>
+    <td>4.01</td>
+    <td>Komplett</td>
+  </tr>
+  <tr class="alt">
+    <td>CSSParser</td>
+    <td>Parser</td>
+    <td>1.0</td>
+    <td>Komplett</td>
+  </tr>
+  <tr>
+    <td>Layout</td>
+    <td>Engine</td>
+    <td>1.0</td>
+    <td>Komplett</td>
+  </tr>
+  <tr class="alt">
+    <td>BrowserUI</td>
+    <td>Renderer</td>
+    <td>0.4</td>
+    <td>Komplett</td>
+  </tr>
+</table>
+
+<h3>Tabelle mit THEAD/TBODY</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Feature</th>
+      <th>CSS 1</th>
+      <th>Implementiert</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Font Properties</td>
+      <td>font-family, font-size, font-style, font-weight, font-variant</td>
+      <td>Ja</td>
+    </tr>
+    <tr class="alt">
+      <td>Text Properties</td>
+      <td>color, text-decoration, text-align, text-indent, text-transform</td>
+      <td>Ja</td>
+    </tr>
+    <tr>
+      <td>Box Model</td>
+      <td>margin, padding, border, width, height</td>
+      <td>Ja</td>
+    </tr>
+    <tr class="alt">
+      <td>Float/Clear</td>
+      <td>float: left/right, clear: left/right/both</td>
+      <td>Ja</td>
+    </tr>
+    <tr>
+      <td>Background</td>
+      <td>background-color</td>
+      <td>Ja</td>
+    </tr>
+    <tr class="alt">
+      <td>Classification</td>
+      <td>display, list-style-type, white-space</td>
+      <td>Ja</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Kleine Tabelle ohne CSS-Border (Default-Borders)</h3>
+<table>
+  <tr>
+    <td>A1</td>
+    <td>B1</td>
+    <td>C1</td>
+  </tr>
+  <tr>
+    <td>A2</td>
+    <td>B2</td>
+    <td>C2</td>
+  </tr>
+</table>
+
+<!-- ==================== Misc: Pre, Blockquote, HR ==================== -->
+<h2>6. Sonstige Elemente</h2>
+
+<h3>Preformatted Text</h3>
+<pre>
+  Zeile 1:   Tabs und    Spaces bleiben erhalten.
+  Zeile 2:   Kein Word-Wrap in &lt;pre&gt;.
+  Zeile 3:   Monospace-Darstellung.
+</pre>
+
+<h3>Blockquote</h3>
+<blockquote>
+  <p><em>"Das Web ist mehr ein sozialer Erfindung als eine technische."</em></p>
+  <p>- Tim Berners-Lee</p>
+</blockquote>
+
+<hr>
+
+<p style="text-align: center; color: #999999;">PBrowser Feature Test - CSS 1 Complete - v1.0.0</p>
+
+</body>
+</html>

@@ -1,5 +1,5 @@
 ; ============================================================================
-; BrowserUI.pbi v0.3.0 - CSS 1 RENDERING
+; BrowserUI.pbi v0.4.0 - CSS 1 RENDERING (Float/Clear + Table)
 ; Rendering mit CSS 1 Properties:
 ; - Background-Color pro Box
 ; - Per-Side Border (top/right/bottom/left)
@@ -9,6 +9,9 @@
 ; - OL-Nummerierung
 ; - Underline, Strikethrough, Overline
 ; - Subscript, Superscript mit Y-Offset
+; NEU v0.4.0:
+; - Table-Zellen: Default 1px solid border wenn kein CSS-Border gesetzt
+; - Float/Clear: korrekte Positionierung (Layout-seitig, Rendering transparent)
 ; ============================================================================
 
 XIncludeFile "HTMLParser.pbi"
@@ -422,6 +425,18 @@ Module BrowserUI
       DrawingMode(#PB_2DDrawing_Transparent)
     EndIf
 
+    ; ========== Table-Zelle: Default 1px solid border wenn kein CSS-Border ==========
+    If *Box\IsTableCell And *Box\BorderStyle = 0 And *Box\Box\Width > 0 And *Box\Box\Height > 0
+      DrawingMode(#PB_2DDrawing_Default)
+      ; 1px solid #ccc als Default Table-Border
+      Protected tblBorderColor.i = RGB(200, 200, 200)
+      Box(*Box\Box\X, *Box\Box\Y, *Box\Box\Width, 1, tblBorderColor)
+      Box(*Box\Box\X, *Box\Box\Y + *Box\Box\Height - 1, *Box\Box\Width, 1, tblBorderColor)
+      Box(*Box\Box\X, *Box\Box\Y, 1, *Box\Box\Height, tblBorderColor)
+      Box(*Box\Box\X + *Box\Box\Width - 1, *Box\Box\Y, 1, *Box\Box\Height, tblBorderColor)
+      DrawingMode(#PB_2DDrawing_Transparent)
+    EndIf
+
     ; ========== CSS 1: Per-Side Border Rendering ==========
     If *Box\BorderStyle > 0 And *Box\Box\Width > 0 And *Box\Box\Height > 0
       Protected BorderX.i = *Box\Box\X
@@ -787,15 +802,15 @@ Module BrowserUI
     Debug "[SaveAsImage] Speichere als: " + Filename
     Debug "[SaveAsImage] Canvas-Größe: " + Str(ActualWidth) + "x" + Str(ActualHeight)
 
-    ; 24-Bit Image erstellen (kein Alpha-Kanal = kein schwarzer Hintergrund bei PNG)
-    Img = CreateImage(#PB_Any, ActualWidth, ActualHeight, 24)
+    ; 32-Bit Image (macOS nutzt intern immer 32-Bit ARGB)
+    Img = CreateImage(#PB_Any, ActualWidth, ActualHeight, 32)
     If Img
       PreloadFontsFromLayout(*CurrentLayout)
 
       If StartDrawing(ImageOutput(Img))
-        ; Weißer Hintergrund
-        DrawingMode(#PB_2DDrawing_Default)
-        Box(0, 0, ActualWidth, ActualHeight, RGB(255, 255, 255))
+        ; Weißer opaker Hintergrund: ALLE 4 Kanäle (RGBA) auf 255 setzen
+        DrawingMode(#PB_2DDrawing_AllChannels)
+        Box(0, 0, ActualWidth, ActualHeight, RGBA(255, 255, 255, 255))
         DrawingMode(#PB_2DDrawing_Transparent)
 
         ; Layout direkt ins Image rendern
@@ -804,6 +819,26 @@ Module BrowserUI
             DrawLayoutBox(*CurrentLayout\Children(), *CurrentDoc)
           Next
         EndIf
+
+        ; macOS Fix: Alpha-Kanal aller Pixel auf 255 forcen
+        ; (DrawText/Box im Transparent-Modus setzen Alpha nicht immer korrekt)
+        Protected *buf = DrawingBuffer()
+        Protected pitch.i = DrawingBufferPitch()
+        Protected pixFmt.i = DrawingBufferPixelFormat()
+        Protected alphaOff.i
+        If pixFmt = #PB_PixelFormat_32Bits_RGB
+          alphaOff = 0   ; macOS ARGB: Alpha ist erstes Byte
+        Else
+          alphaOff = 3   ; Windows BGRA: Alpha ist letztes Byte
+        EndIf
+
+        Protected px.i, py.i, *row
+        For py = 0 To ActualHeight - 1
+          *row = *buf + (py * pitch)
+          For px = 0 To ActualWidth - 1
+            PokeA(*row + (px * 4) + alphaOff, 255)
+          Next
+        Next
 
         StopDrawing()
       EndIf
