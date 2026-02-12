@@ -1,5 +1,5 @@
 ; ============================================================================
-; BrowserUI.pbi v0.3.0 - CSS 1 RENDERING
+; BrowserUI.pbi v0.4.0 - CSS 1 RENDERING (Float/Clear + Table)
 ; Rendering mit CSS 1 Properties:
 ; - Background-Color pro Box
 ; - Per-Side Border (top/right/bottom/left)
@@ -9,6 +9,9 @@
 ; - OL-Nummerierung
 ; - Underline, Strikethrough, Overline
 ; - Subscript, Superscript mit Y-Offset
+; NEU v0.4.0:
+; - Table-Zellen: Default 1px solid border wenn kein CSS-Border gesetzt
+; - Float/Clear: korrekte Positionierung (Layout-seitig, Rendering transparent)
 ; ============================================================================
 
 XIncludeFile "HTMLParser.pbi"
@@ -419,6 +422,18 @@ Module BrowserUI
     If *Box\BackgroundColor <> RGB(255, 255, 255) And *Box\Box\Width > 0 And *Box\Box\Height > 0
       DrawingMode(#PB_2DDrawing_Default)
       Box(*Box\Box\X, *Box\Box\Y, *Box\Box\Width, *Box\Box\Height, *Box\BackgroundColor)
+      DrawingMode(#PB_2DDrawing_Transparent)
+    EndIf
+
+    ; ========== Table-Zelle: Default 1px solid border wenn kein CSS-Border ==========
+    If *Box\IsTableCell And *Box\BorderStyle = 0 And *Box\Box\Width > 0 And *Box\Box\Height > 0
+      DrawingMode(#PB_2DDrawing_Default)
+      ; 1px solid #ccc als Default Table-Border
+      Protected tblBorderColor.i = RGB(200, 200, 200)
+      Box(*Box\Box\X, *Box\Box\Y, *Box\Box\Width, 1, tblBorderColor)
+      Box(*Box\Box\X, *Box\Box\Y + *Box\Box\Height - 1, *Box\Box\Width, 1, tblBorderColor)
+      Box(*Box\Box\X, *Box\Box\Y, 1, *Box\Box\Height, tblBorderColor)
+      Box(*Box\Box\X + *Box\Box\Width - 1, *Box\Box\Y, 1, *Box\Box\Height, tblBorderColor)
       DrawingMode(#PB_2DDrawing_Transparent)
     EndIf
 

@@ -1,15 +1,19 @@
 ; ============================================================================
-; Layout.pbi v0.9.0 - CSS 1 Rendering (mit Layout-Fixes)
+; Layout.pbi v1.0.0 - CSS 1 Rendering (Float/Clear + Table Layout)
 ; ----------------------------------------------------------------------------
-; Fixes:
-;  FIX 1: Block-Flow korrekt (Children nacheinander, PaddingTop/Bottom korrekt,
-;         keine doppelten Margins, Box\Y nach MarginTop, Border/Background sauber)
-;  FIX 2: Text-Nodes erhhen CurrentY im Block-Kontext (LineHeight/Fallback)
+; NEU in v1.0.0:
+;  - Float/Clear (CSS 1): float:left/right, clear:left/right/both
+;    Float-Context trackt aktive Floats, Content fließt drumherum
+;  - Table Layout (CSS 1): TABLE/TR/TD/TH/THEAD/TBODY/TFOOT/CAPTION
+;    Grid-basiertes Layout mit gleichmäßigen Spaltenbreiten
+;    TH: bold + center als Default
+;    Zellen-Höhe wird pro Zeile auf Maximum angeglichen
+; Bestehende Fixes:
+;  FIX 1: Block-Flow korrekt
+;  FIX 2: Text-Nodes erhöhen CurrentY im Block-Kontext
 ;  FIX 3: <br> nutzt LineHeight/FontSize statt hardcoded 20
-;  Drift-Fix A (Lists): UL/OL/MENU/DIR stabil ber Box-Model (kein driftendes +15/+15)
+;  Drift-Fix A (Lists): UL/OL/MENU/DIR stabil über Box-Model
 ;  Drift-Fix B (IMG): konsistente Width/Height + stabiler vertikaler Advance
-; ----------------------------------------------------------------------------
-; Basis: dein gepostetes Layout.pbi (v0.8.1a) ? minimal-invasiv
 ; ============================================================================
 
 XIncludeFile "HTMLParser.pbi"
@@ -95,15 +99,32 @@ DeclareModule Layout
     ListStyleType.i       ; CSS 1: 0=disc, 1=circle, 2=square, 3=decimal, ...8=none
     ListItemIndex.i       ; OL-Nummerierung: 1-basiert
 
+    ; Float/Clear (CSS 1)
+    Float.i               ; 0=none, 1=left, 2=right
+    Clear.i               ; 0=none, 1=left, 2=right, 3=both
+
     ; Sub/Super (HTML 4)
     IsSubscript.i
     IsSuperscript.i
+
+    ; Table Layout
+    IsTableCell.i         ; #True wenn TD/TH
+    TableCellCol.i        ; Spaltenindex (0-basiert)
 
     ; Wrapped Text
     List WrappedLines.s()
     List InlineRuns.InlineRun()
     List LineRunCounts.i()  ; NEU: Anzahl Runs pro Zeile (für Inline-Rendering)
     List *Children.LayoutBox()
+  EndStructure
+
+  ; Float-Context: trackt aktive Floats
+  Structure FloatRect
+    X.i
+    Y.i
+    Width.i
+    Height.i
+    Side.i    ; 1=left, 2=right
   EndStructure
 
   Declare.i Calculate(*Doc.Document::Document, ViewportWidth.i, ViewportHeight.i)
@@ -113,8 +134,67 @@ DeclareModule Layout
 EndDeclareModule
 
 Module Layout
-  
-  
+
+  ; ============================================================
+  ; Float-Context: globale Liste aktiver Floats
+  ; ============================================================
+  Global NewList ActiveFloats.FloatRect()
+
+  ; Liefert die Y-Position unterhalb aller Floats der angegebenen Seite (oder beider)
+  Procedure.i GetClearY(ClearSide.i)
+    ; ClearSide: 1=left, 2=right, 3=both
+    Protected maxY.i = 0
+    ForEach ActiveFloats()
+      If ClearSide = 3 Or ActiveFloats()\Side = ClearSide
+        Protected bottom.i = ActiveFloats()\Y + ActiveFloats()\Height
+        If bottom > maxY
+          maxY = bottom
+        EndIf
+      EndIf
+    Next
+    ProcedureReturn maxY
+  EndProcedure
+
+  ; Entferne Floats deren untere Kante <= Y ist (abgelaufen)
+  Procedure PruneFloats(Y.i)
+    ForEach ActiveFloats()
+      If (ActiveFloats()\Y + ActiveFloats()\Height) <= Y
+        DeleteElement(ActiveFloats())
+      EndIf
+    Next
+  EndProcedure
+
+  ; Berechne verfügbaren X-Offset und Breite bei gegebenem Y unter Berücksichtigung aktiver Floats
+  Procedure GetFloatAvailable(Y.i, ContainerX.i, ContainerWidth.i, *OutX.Integer, *OutWidth.Integer)
+    Protected leftEdge.i = ContainerX
+    Protected rightEdge.i = ContainerX + ContainerWidth
+
+    ForEach ActiveFloats()
+      Protected fTop.i = ActiveFloats()\Y
+      Protected fBottom.i = ActiveFloats()\Y + ActiveFloats()\Height
+      If Y >= fTop And Y < fBottom
+        If ActiveFloats()\Side = 1  ; left float
+          Protected fRight.i = ActiveFloats()\X + ActiveFloats()\Width
+          If fRight > leftEdge
+            leftEdge = fRight
+          EndIf
+        ElseIf ActiveFloats()\Side = 2  ; right float
+          Protected fLeft.i = ActiveFloats()\X
+          If fLeft < rightEdge
+            rightEdge = fLeft
+          EndIf
+        EndIf
+      EndIf
+    Next
+
+    *OutX\i = leftEdge
+    *OutWidth\i = rightEdge - leftEdge
+    If *OutWidth\i < 0
+      *OutWidth\i = 0
+    EndIf
+  EndProcedure
+
+
   Procedure.s FixMojibakeUTF8(Text.s)
     ; Heuristik: nur wenn typische Mojibake-Sequenzen vorkommen
     If FindString(Text, "Ã") = 0 And FindString(Text, "Â") = 0
@@ -911,6 +991,10 @@ Procedure WrapInlineRunsToBox(*Box.LayoutBox, List Runs.InlineRun(), MaxWidth.i,
 
         Debug "[LayoutNode] <" + *Node\TagName + "> Border: W=" + Str(*Box\BorderWidth) + " S=" + Str(*Box\BorderStyle) + " C=" + Str(*Box\BorderColor)
 
+        ; Float/Clear (CSS 1)
+        *Box\Float = CSSStyle\Float
+        *Box\Clear = CSSStyle\Clear
+
         ; Classification
         *Box\Display = CSSStyle\Display
         *Box\ListStyleType = CSSStyle\ListStyleType
@@ -933,6 +1017,29 @@ Procedure WrapInlineRunsToBox(*Box.LayoutBox, List Runs.InlineRun(), MaxWidth.i,
             Case HTMLParser::#Element_S, HTMLParser::#Element_STRIKE, HTMLParser::#Element_DEL
               *Box\TextDecoration = 2  ; line-through
           EndSelect
+        EndIf
+
+        ; ============================================================
+        ; CSS 1: Clear - verschiebt Y unter aktive Floats
+        ; ============================================================
+        If *Box\Clear > 0
+          Protected clearY.i = GetClearY(*Box\Clear)
+          If clearY > CurrentY
+            CurrentY = clearY
+          EndIf
+        EndIf
+
+        ; ============================================================
+        ; CSS 1: Float-Aware - passe X/Width an aktive Floats an
+        ; ============================================================
+        If IsBlock And *Box\Float = 0
+          PruneFloats(CurrentY)
+          Protected floatX.Integer, floatW.Integer
+          GetFloatAvailable(CurrentY, CurrentX, ViewportWidth - CurrentX, @floatX, @floatW)
+          ; Nur wenn Floats aktiv sind, passe Position an
+          If floatX\i > CurrentX Or floatW\i < (ViewportWidth - CurrentX)
+            *Box\Box\X = floatX\i
+          EndIf
         EndIf
 
         Select *Node\ElementType
@@ -1244,6 +1351,391 @@ Case HTMLParser::#Element_UL, HTMLParser::#Element_OL, HTMLParser::#Element_MENU
 
             *Box\Box\Height = CurrentY - *Box\Box\Y
 
+          ; ------------------------------------------------------------
+          ; TABLE LAYOUT (CSS 1: einfaches Grid)
+          ; ------------------------------------------------------------
+          Case HTMLParser::#Element_TABLE
+            Protected tblMTop.i = 15
+            Protected tblMBottom.i = 15
+            If CSSStyle\MarginTop > 0 : tblMTop = CSSStyle\MarginTop : EndIf
+            If CSSStyle\MarginBottom > 0 : tblMBottom = CSSStyle\MarginBottom : EndIf
+
+            CurrentY + tblMTop
+            *Box\Box\X = CurrentX + CSSStyle\MarginLeft
+            *Box\Box\Y = CurrentY
+
+            Protected tblPadTop.i = CSSStyle\PaddingTop
+            Protected tblPadBottom.i = CSSStyle\PaddingBottom
+            Protected tblPadLeft.i = CSSStyle\PaddingLeft
+            Protected tblPadRight.i = CSSStyle\PaddingRight
+
+            Protected tblAvailW.i = (ViewportWidth - CurrentX - CSSStyle\MarginLeft - CSSStyle\MarginRight)
+            Protected tblContentW.i = tblAvailW - tblPadLeft - tblPadRight
+
+            ; --- Spaltenanzahl ermitteln (max TD/TH pro TR) ---
+            Protected tblCols.i = 0
+            Protected tblCountCols.i
+            ForEach *Node\Children()
+              Protected *TblChild.HTMLParser::DOMNode = *Node\Children()
+              If *TblChild\Hidden : Continue : EndIf
+              Select *TblChild\ElementType
+                Case HTMLParser::#Element_TR
+                  tblCountCols = 0
+                  ForEach *TblChild\Children()
+                    Protected *CellCount.HTMLParser::DOMNode = *TblChild\Children()
+                    If Not *CellCount\Hidden
+                      Select *CellCount\ElementType
+                        Case HTMLParser::#Element_TD, HTMLParser::#Element_TH
+                          tblCountCols + 1
+                      EndSelect
+                    EndIf
+                  Next
+                  If tblCountCols > tblCols : tblCols = tblCountCols : EndIf
+
+                Case HTMLParser::#Element_THEAD, HTMLParser::#Element_TBODY, HTMLParser::#Element_TFOOT
+                  ; Scan rows within section
+                  ForEach *TblChild\Children()
+                    Protected *SecRow.HTMLParser::DOMNode = *TblChild\Children()
+                    If *SecRow\Hidden : Continue : EndIf
+                    If *SecRow\ElementType = HTMLParser::#Element_TR
+                      tblCountCols = 0
+                      ForEach *SecRow\Children()
+                        Protected *SecCell.HTMLParser::DOMNode = *SecRow\Children()
+                        If Not *SecCell\Hidden
+                          Select *SecCell\ElementType
+                            Case HTMLParser::#Element_TD, HTMLParser::#Element_TH
+                              tblCountCols + 1
+                          EndSelect
+                        EndIf
+                      Next
+                      If tblCountCols > tblCols : tblCols = tblCountCols : EndIf
+                    EndIf
+                  Next
+              EndSelect
+            Next
+
+            If tblCols <= 0 : tblCols = 1 : EndIf
+
+            ; Spaltenbreite gleichmäßig
+            Protected tblCellPad.i = 4  ; Default cellpadding
+            Protected tblColW.i = tblContentW / tblCols
+
+            ; --- Zeilen layouten ---
+            Protected tblY.i = CurrentY + tblPadTop
+            Protected tblStartX.i = *Box\Box\X + tblPadLeft
+
+            ; Hilfsprozedur inline: Layout einer TR
+            ; Wir iterieren direkt über die Kinder
+            ForEach *Node\Children()
+              *TblChild = *Node\Children()
+              If *TblChild\Hidden : Continue : EndIf
+
+              Select *TblChild\ElementType
+                Case HTMLParser::#Element_CAPTION
+                  ; Caption: einfacher Block über der Tabelle
+                  tblY = LayoutNode(*TblChild, *Box, ViewportWidth, tblStartX, tblY)
+
+                Case HTMLParser::#Element_TR
+                  ; --- Eine Tabellenzeile ---
+                  Protected *RowBox.LayoutBox = CreateBox()
+                  *RowBox\DOMNode = *TblChild
+                  *RowBox\Box\X = tblStartX
+                  *RowBox\Box\Y = tblY
+                  *RowBox\Box\Width = tblContentW
+
+                  ; CSS-Style für TR
+                  Protected trCSS.Style::ComputedStyle
+                  Style::GetComputedStyle(*TblChild, @trCSS)
+                  *RowBox\BackgroundColor = RGB(255, 255, 255)
+                  If FindMapElement(*TblChild\Attributes(), "css-background-color")
+                    *RowBox\BackgroundColor = trCSS\BackgroundColor
+                  EndIf
+
+                  Protected cellX.i = tblStartX
+                  Protected rowMaxH.i = 0
+                  Protected cellIdx.i = 0
+
+                  ForEach *TblChild\Children()
+                    Protected *Cell.HTMLParser::DOMNode = *TblChild\Children()
+                    If *Cell\Hidden : Continue : EndIf
+
+                    Select *Cell\ElementType
+                      Case HTMLParser::#Element_TD, HTMLParser::#Element_TH
+                        Protected *CellBox.LayoutBox = CreateBox()
+                        *CellBox\DOMNode = *Cell
+                        *CellBox\IsTableCell = #True
+                        *CellBox\TableCellCol = cellIdx
+                        *CellBox\Box\X = cellX
+                        *CellBox\Box\Y = tblY
+                        *CellBox\Box\Width = tblColW
+
+                        ; CSS-Style für Zelle
+                        Protected cellCSS.Style::ComputedStyle
+                        Style::GetComputedStyle(*Cell, @cellCSS)
+
+                        ; Font
+                        Protected cellFontSize.i = 14
+                        Protected cellFontStyle.i = 0
+                        If cellCSS\FontSize > 0 : cellFontSize = cellCSS\FontSize : EndIf
+                        If cellCSS\FontStyle > 0 : cellFontStyle = cellCSS\FontStyle : EndIf
+                        If *Cell\ElementType = HTMLParser::#Element_TH
+                          cellFontStyle | #PB_Font_Bold
+                          If cellCSS\TextAlign = 0 : cellCSS\TextAlign = 1 : EndIf  ; TH default center
+                        EndIf
+
+                        *CellBox\FontSize = cellFontSize
+                        *CellBox\FontStyle = cellFontStyle
+                        *CellBox\FontFamily = cellCSS\FontFamily
+                        *CellBox\Color = RGB(0, 0, 0)
+                        If FindMapElement(*Cell\Attributes(), "css-color")
+                          *CellBox\Color = cellCSS\Color
+                        EndIf
+                        *CellBox\BackgroundColor = RGB(255, 255, 255)
+                        If FindMapElement(*Cell\Attributes(), "css-background-color")
+                          *CellBox\BackgroundColor = cellCSS\BackgroundColor
+                        EndIf
+                        *CellBox\TextAlign = cellCSS\TextAlign
+                        *CellBox\LineHeight = cellCSS\LineHeight
+                        *CellBox\PaddingTop = cellCSS\PaddingTop
+                        *CellBox\PaddingBottom = cellCSS\PaddingBottom
+                        *CellBox\PaddingLeft = cellCSS\PaddingLeft
+                        *CellBox\PaddingRight = cellCSS\PaddingRight
+                        If *CellBox\PaddingTop = 0 And *CellBox\PaddingBottom = 0
+                          *CellBox\PaddingTop = tblCellPad
+                          *CellBox\PaddingBottom = tblCellPad
+                        EndIf
+                        If *CellBox\PaddingLeft = 0 And *CellBox\PaddingRight = 0
+                          *CellBox\PaddingLeft = tblCellPad
+                          *CellBox\PaddingRight = tblCellPad
+                        EndIf
+                        *CellBox\WhiteSpace = GetWhiteSpaceMode(*Cell)
+
+                        ; Border für Zelle
+                        *CellBox\BorderTopWidth = cellCSS\BorderTopWidth
+                        *CellBox\BorderRightWidth = cellCSS\BorderRightWidth
+                        *CellBox\BorderBottomWidth = cellCSS\BorderBottomWidth
+                        *CellBox\BorderLeftWidth = cellCSS\BorderLeftWidth
+                        *CellBox\BorderWidth = cellCSS\BorderWidth
+                        *CellBox\BorderStyle = cellCSS\BorderStyle
+                        *CellBox\BorderColor = cellCSS\BorderColor
+
+                        ; Zell-Inhalt layouten
+                        Protected cellContentX.i = cellX + *CellBox\PaddingLeft
+                        Protected cellContentY.i = tblY + *CellBox\PaddingTop
+                        Protected cellContentW.i = tblColW - *CellBox\PaddingLeft - *CellBox\PaddingRight
+                        If cellContentW < 20 : cellContentW = 20 : EndIf
+
+                        If HasOnlyInlineContent(*Cell)
+                          Protected cellFam.s = "Arial"
+                          If *CellBox\FontFamily <> "" : cellFam = *CellBox\FontFamily : EndIf
+
+                          Protected NewList cellRuns.InlineRun()
+                          CollectInlineRuns(*Cell, cellRuns(), cellFontSize, cellFontStyle, cellFam, *CellBox\Color, 0, 0, 0, *CellBox\WhiteSpace)
+
+                          WrapInlineRunsToBox(*CellBox, cellRuns(), cellContentW, cellFam, *CellBox\WhiteSpace)
+
+                          Protected cellLH.i = *CellBox\LineHeight
+                          If cellLH <= 0 : cellLH = cellFontSize + 6 : EndIf
+                          Protected cellLineCount.i = ListSize(*CellBox\LineRunCounts())
+                          If cellLineCount <= 0 : cellLineCount = 1 : EndIf
+
+                          Protected cellH.i = *CellBox\PaddingTop + (cellLineCount * cellLH) + *CellBox\PaddingBottom
+                        Else
+                          ; Mixed content: Block-Flow
+                          Protected cellEndY.i = cellContentY
+                          ForEach *Cell\Children()
+                            cellEndY = LayoutNode(*Cell\Children(), *CellBox, cellX + tblColW, cellContentX, cellEndY)
+                          Next
+                          cellH = (cellEndY - tblY) + *CellBox\PaddingBottom
+                        EndIf
+
+                        *CellBox\Box\Height = cellH
+                        If cellH > rowMaxH : rowMaxH = cellH : EndIf
+
+                        AddElement(*RowBox\Children())
+                        *RowBox\Children() = *CellBox
+
+                        cellX + tblColW
+                        cellIdx + 1
+                    EndSelect
+                  Next
+
+                  ; Zeilenhöhe: alle Zellen auf gleiche Höhe setzen
+                  If rowMaxH < 20 : rowMaxH = 20 : EndIf
+                  *RowBox\Box\Height = rowMaxH
+                  ForEach *RowBox\Children()
+                    *RowBox\Children()\Box\Height = rowMaxH
+                  Next
+
+                  tblY + rowMaxH
+                  AddElement(*Box\Children())
+                  *Box\Children() = *RowBox
+
+                Case HTMLParser::#Element_THEAD, HTMLParser::#Element_TBODY, HTMLParser::#Element_TFOOT
+                  ; Table-Section: iterate rows within
+                  ForEach *TblChild\Children()
+                    *SecRow = *TblChild\Children()
+                    If *SecRow\Hidden : Continue : EndIf
+                    If *SecRow\ElementType = HTMLParser::#Element_TR
+                      ; Same TR-Layout as above
+                      Protected *SRowBox.LayoutBox = CreateBox()
+                      *SRowBox\DOMNode = *SecRow
+                      *SRowBox\Box\X = tblStartX
+                      *SRowBox\Box\Y = tblY
+                      *SRowBox\Box\Width = tblContentW
+
+                      Protected srCSS.Style::ComputedStyle
+                      Style::GetComputedStyle(*SecRow, @srCSS)
+                      *SRowBox\BackgroundColor = RGB(255, 255, 255)
+                      If FindMapElement(*SecRow\Attributes(), "css-background-color")
+                        *SRowBox\BackgroundColor = srCSS\BackgroundColor
+                      EndIf
+
+                      Protected sCellX.i = tblStartX
+                      Protected sRowMaxH.i = 0
+                      Protected sCellIdx.i = 0
+
+                      ForEach *SecRow\Children()
+                        Protected *SCell.HTMLParser::DOMNode = *SecRow\Children()
+                        If *SCell\Hidden : Continue : EndIf
+                        Select *SCell\ElementType
+                          Case HTMLParser::#Element_TD, HTMLParser::#Element_TH
+                            Protected *SCellBox.LayoutBox = CreateBox()
+                            *SCellBox\DOMNode = *SCell
+                            *SCellBox\IsTableCell = #True
+                            *SCellBox\TableCellCol = sCellIdx
+                            *SCellBox\Box\X = sCellX
+                            *SCellBox\Box\Y = tblY
+                            *SCellBox\Box\Width = tblColW
+
+                            Protected scCSS.Style::ComputedStyle
+                            Style::GetComputedStyle(*SCell, @scCSS)
+                            Protected scFontSize.i = 14
+                            Protected scFontStyle.i = 0
+                            If scCSS\FontSize > 0 : scFontSize = scCSS\FontSize : EndIf
+                            If scCSS\FontStyle > 0 : scFontStyle = scCSS\FontStyle : EndIf
+                            If *SCell\ElementType = HTMLParser::#Element_TH
+                              scFontStyle | #PB_Font_Bold
+                              If scCSS\TextAlign = 0 : scCSS\TextAlign = 1 : EndIf
+                            EndIf
+
+                            *SCellBox\FontSize = scFontSize
+                            *SCellBox\FontStyle = scFontStyle
+                            *SCellBox\FontFamily = scCSS\FontFamily
+                            *SCellBox\Color = RGB(0, 0, 0)
+                            If FindMapElement(*SCell\Attributes(), "css-color")
+                              *SCellBox\Color = scCSS\Color
+                            EndIf
+                            *SCellBox\BackgroundColor = RGB(255, 255, 255)
+                            If FindMapElement(*SCell\Attributes(), "css-background-color")
+                              *SCellBox\BackgroundColor = scCSS\BackgroundColor
+                            EndIf
+                            *SCellBox\TextAlign = scCSS\TextAlign
+                            *SCellBox\LineHeight = scCSS\LineHeight
+                            *SCellBox\PaddingTop = scCSS\PaddingTop
+                            *SCellBox\PaddingBottom = scCSS\PaddingBottom
+                            *SCellBox\PaddingLeft = scCSS\PaddingLeft
+                            *SCellBox\PaddingRight = scCSS\PaddingRight
+                            If *SCellBox\PaddingTop = 0 And *SCellBox\PaddingBottom = 0
+                              *SCellBox\PaddingTop = tblCellPad
+                              *SCellBox\PaddingBottom = tblCellPad
+                            EndIf
+                            If *SCellBox\PaddingLeft = 0 And *SCellBox\PaddingRight = 0
+                              *SCellBox\PaddingLeft = tblCellPad
+                              *SCellBox\PaddingRight = tblCellPad
+                            EndIf
+                            *SCellBox\WhiteSpace = GetWhiteSpaceMode(*SCell)
+                            *SCellBox\BorderTopWidth = scCSS\BorderTopWidth
+                            *SCellBox\BorderRightWidth = scCSS\BorderRightWidth
+                            *SCellBox\BorderBottomWidth = scCSS\BorderBottomWidth
+                            *SCellBox\BorderLeftWidth = scCSS\BorderLeftWidth
+                            *SCellBox\BorderWidth = scCSS\BorderWidth
+                            *SCellBox\BorderStyle = scCSS\BorderStyle
+                            *SCellBox\BorderColor = scCSS\BorderColor
+
+                            Protected scCX.i = sCellX + *SCellBox\PaddingLeft
+                            Protected scCY.i = tblY + *SCellBox\PaddingTop
+                            Protected scCW.i = tblColW - *SCellBox\PaddingLeft - *SCellBox\PaddingRight
+                            If scCW < 20 : scCW = 20 : EndIf
+
+                            If HasOnlyInlineContent(*SCell)
+                              Protected scFam.s = "Arial"
+                              If *SCellBox\FontFamily <> "" : scFam = *SCellBox\FontFamily : EndIf
+                              Protected NewList scRuns.InlineRun()
+                              CollectInlineRuns(*SCell, scRuns(), scFontSize, scFontStyle, scFam, *SCellBox\Color, 0, 0, 0, *SCellBox\WhiteSpace)
+                              WrapInlineRunsToBox(*SCellBox, scRuns(), scCW, scFam, *SCellBox\WhiteSpace)
+                              Protected scLH.i = *SCellBox\LineHeight
+                              If scLH <= 0 : scLH = scFontSize + 6 : EndIf
+                              Protected scLC.i = ListSize(*SCellBox\LineRunCounts())
+                              If scLC <= 0 : scLC = 1 : EndIf
+                              Protected scH.i = *SCellBox\PaddingTop + (scLC * scLH) + *SCellBox\PaddingBottom
+                            Else
+                              Protected scEndY.i = scCY
+                              ForEach *SCell\Children()
+                                scEndY = LayoutNode(*SCell\Children(), *SCellBox, sCellX + tblColW, scCX, scEndY)
+                              Next
+                              scH = (scEndY - tblY) + *SCellBox\PaddingBottom
+                            EndIf
+
+                            *SCellBox\Box\Height = scH
+                            If scH > sRowMaxH : sRowMaxH = scH : EndIf
+
+                            AddElement(*SRowBox\Children())
+                            *SRowBox\Children() = *SCellBox
+
+                            sCellX + tblColW
+                            sCellIdx + 1
+                        EndSelect
+                      Next
+
+                      If sRowMaxH < 20 : sRowMaxH = 20 : EndIf
+                      *SRowBox\Box\Height = sRowMaxH
+                      ForEach *SRowBox\Children()
+                        *SRowBox\Children()\Box\Height = sRowMaxH
+                      Next
+
+                      tblY + sRowMaxH
+                      AddElement(*Box\Children())
+                      *Box\Children() = *SRowBox
+                    EndIf
+                  Next
+              EndSelect
+            Next
+
+            tblY + tblPadBottom
+            *Box\Box\Width = tblAvailW
+            *Box\Box\Height = tblY - *Box\Box\Y
+            CurrentY = tblY + tblMBottom
+
+          ; TD/TH außerhalb TABLE: als Block behandeln (Fallback)
+          Case HTMLParser::#Element_TD, HTMLParser::#Element_TH
+            *Box\Box\X = CurrentX
+            *Box\Box\Y = CurrentY
+            *Box\Box\Width = ViewportWidth - CurrentX
+
+            If HasOnlyInlineContent(*Node)
+              Protected NewList tdRuns.InlineRun()
+              Protected tdFam.s = "Arial" : If *Box\FontFamily <> "" : tdFam = *Box\FontFamily : EndIf
+              CollectInlineRuns(*Node, tdRuns(), FontSize, FontStyle, tdFam, Color, *Box\TextDecoration, 0, 0, GetWhiteSpaceMode(*Node))
+              Protected tdLH.i = *Box\LineHeight : If tdLH <= 0 : tdLH = FontSize + 6 : EndIf
+              WrapInlineRunsToBox(*Box, tdRuns(), *Box\Box\Width, tdFam, *Box\WhiteSpace)
+              Protected tdLines.i = ListSize(*Box\LineRunCounts()) : If tdLines <= 0 : tdLines = 1 : EndIf
+              CurrentY + (tdLines * tdLH)
+            Else
+              ForEach *Node\Children()
+                CurrentY = LayoutNode(*Node\Children(), *Box, ViewportWidth, CurrentX, CurrentY)
+              Next
+            EndIf
+            *Box\Box\Height = CurrentY - *Box\Box\Y
+
+          ; TR außerhalb TABLE: Children durchlaufen (Fallback)
+          Case HTMLParser::#Element_TR, HTMLParser::#Element_THEAD, HTMLParser::#Element_TBODY, HTMLParser::#Element_TFOOT
+            ForEach *Node\Children()
+              CurrentY = LayoutNode(*Node\Children(), *Box, ViewportWidth, CurrentX, CurrentY)
+            Next
+            *Box\Box\Height = CurrentY - *Box\Box\Y
+            *Box\Box\Width = ViewportWidth - CurrentX
+
           ; INLINE ELEMENTS - behandeln Children inline ohne Y zu incrementieren
           Case HTMLParser::#Element_STRONG, HTMLParser::#Element_B,
                HTMLParser::#Element_EM, HTMLParser::#Element_I,
@@ -1269,6 +1761,35 @@ Case HTMLParser::#Element_UL, HTMLParser::#Element_OL, HTMLParser::#Element_MENU
             *Box\Box\Width = ViewportWidth - CurrentX  ; FIX: Width fr Border-Rendering
 
         EndSelect
+
+        ; ============================================================
+        ; CSS 1: Float-Positionierung
+        ; ============================================================
+        If *Box\Float > 0 And *Box\Box\Width > 0 And *Box\Box\Height > 0
+          PruneFloats(CurrentY)
+          Protected fAvailX.Integer, fAvailW.Integer
+          GetFloatAvailable(*Box\Box\Y, CurrentX, ViewportWidth - CurrentX, @fAvailX, @fAvailW)
+
+          If *Box\Float = 1  ; float: left
+            *Box\Box\X = fAvailX\i
+          ElseIf *Box\Float = 2  ; float: right
+            *Box\Box\X = (fAvailX\i + fAvailW\i) - *Box\Box\Width
+            If *Box\Box\X < fAvailX\i
+              *Box\Box\X = fAvailX\i
+            EndIf
+          EndIf
+
+          ; Register float
+          AddElement(ActiveFloats())
+          ActiveFloats()\X = *Box\Box\X
+          ActiveFloats()\Y = *Box\Box\Y
+          ActiveFloats()\Width = *Box\Box\Width
+          ActiveFloats()\Height = *Box\Box\Height
+          ActiveFloats()\Side = *Box\Float
+
+          ; Floated elements don't advance CurrentY
+          CurrentY = *Box\Box\Y
+        EndIf
 
       Case HTMLParser::#NodeType_Text
 
@@ -1420,6 +1941,9 @@ Case HTMLParser::#Element_UL, HTMLParser::#Element_OL, HTMLParser::#Element_MENU
     If Not *Doc Or Not *Doc\RootNode
       ProcedureReturn 0
     EndIf
+
+    ; Float-Context zurücksetzen
+    ClearList(ActiveFloats())
 
     *RootBox = CreateBox()
     *RootBox\Box\Width = ViewportWidth
