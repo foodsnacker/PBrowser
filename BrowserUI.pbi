@@ -765,7 +765,7 @@ Module BrowserUI
   Procedure.i SaveAsImage(Filename.s, Fileformat = OSFunc::#image_png)
     Protected Img.i, Result.i, suffix.s = "png"
     Protected ActualWidth.i, ActualHeight.i
-    
+
     Select Fileformat
       Case OSFunc::#image_png: suffix = "png"
       Case OSFunc::#image_jpg: suffix = "jpg"
@@ -773,49 +773,59 @@ Module BrowserUI
       Case OSFunc::#image_tiff: suffix = "tiff"
       Case OSFunc::#image_jpeg2000: suffix = "jp2"
     EndSelect
-    
+
     If LCase(GetExtensionPart(Filename)) <> suffix
       Filename + "." + suffix
     EndIf
-    
+
     ; Canvas-Größe ermitteln
     ActualWidth = GadgetWidth(#Canvas_Main)
     ActualHeight = GadgetHeight(#Canvas_Main)
-    
+
     Debug ""
     Debug "=== SaveAsImage START ==="
     Debug "[SaveAsImage] Speichere als: " + Filename
     Debug "[SaveAsImage] Canvas-Größe: " + Str(ActualWidth) + "x" + Str(ActualHeight)
-    
-    ; Canvas DIREKT grabben
-    If StartDrawing(CanvasOutput(#Canvas_Main))
-      
-      Img = GrabDrawingImage(#PB_Any, 0, 0, ActualWidth, ActualHeight)
-      
-      StopDrawing()
-      
-      If Img
-        Debug "[SaveAsImage] Image gegrabbt: " + Str(ImageWidth(Img)) + "x" + Str(ImageHeight(Img))
-        
-        Result = OSFunc::SaveImageEx(Img, Filename, Fileformat)
-        FreeImage(Img)
-        
-        If Result
-          Debug "[SaveAsImage] ✅ Erfolgreich gespeichert!"
-        Else
-          Debug "[SaveAsImage] ❌ FEHLER beim Speichern!"
+
+    ; 24-Bit Image erstellen (kein Alpha-Kanal = kein schwarzer Hintergrund bei PNG)
+    Img = CreateImage(#PB_Any, ActualWidth, ActualHeight, 24)
+    If Img
+      PreloadFontsFromLayout(*CurrentLayout)
+
+      If StartDrawing(ImageOutput(Img))
+        ; Weißer Hintergrund
+        DrawingMode(#PB_2DDrawing_Default)
+        Box(0, 0, ActualWidth, ActualHeight, RGB(255, 255, 255))
+        DrawingMode(#PB_2DDrawing_Transparent)
+
+        ; Layout direkt ins Image rendern
+        If *CurrentLayout
+          ForEach *CurrentLayout\Children()
+            DrawLayoutBox(*CurrentLayout\Children(), *CurrentDoc)
+          Next
         EndIf
-        
-        Debug "=== SaveAsImage END ==="
-        Debug ""
-        ProcedureReturn Result
-      Else
-        Debug "[SaveAsImage] ❌ FEHLER: GrabDrawingImage fehlgeschlagen!"
+
+        StopDrawing()
       EndIf
+
+      Debug "[SaveAsImage] Image erstellt: " + Str(ImageWidth(Img)) + "x" + Str(ImageHeight(Img))
+
+      Result = OSFunc::SaveImageEx(Img, Filename, Fileformat)
+      FreeImage(Img)
+
+      If Result
+        Debug "[SaveAsImage] Erfolgreich gespeichert!"
+      Else
+        Debug "[SaveAsImage] FEHLER beim Speichern!"
+      EndIf
+
+      Debug "=== SaveAsImage END ==="
+      Debug ""
+      ProcedureReturn Result
     Else
-      Debug "[SaveAsImage] ❌ FEHLER: Konnte Canvas nicht öffnen!"
+      Debug "[SaveAsImage] FEHLER: CreateImage fehlgeschlagen!"
     EndIf
-    
+
     Debug "=== SaveAsImage END ==="
     Debug ""
     ProcedureReturn #False
