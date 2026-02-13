@@ -759,9 +759,10 @@ Module BrowserUI
     
     Debug "Canvas Drawing Area: " + Str(OutputWidth()) + "x" + Str(OutputHeight())
     
-    DrawingMode(#PB_2DDrawing_Default)
-    Box(0, 0, OutputWidth(), OutputHeight(), RGB(255, 255, 255))
-    
+    ; Weißer opaker Hintergrund: ALLE 4 Kanäle (RGBA) auf 255 setzen (macOS ARGB Fix)
+    DrawingMode(#PB_2DDrawing_AllChannels)
+    Box(0, 0, OutputWidth(), OutputHeight(), RGBA(255, 255, 255, 255))
+
     DrawingMode(#PB_2DDrawing_Transparent)
     
     If *LayoutRoot
